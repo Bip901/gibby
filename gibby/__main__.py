@@ -3,10 +3,11 @@ import sys
 from pathlib import Path
 from typing import Annotated, Optional
 
+import remote_url
 import typer
 
-from . import remote_url
 from .git import Git
+from .remote_url import RemoteUrl
 
 app = typer.Typer(no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 # app.add_typer() # https://typer.tiangolo.com/tutorial/subcommands/add-typer/
@@ -16,10 +17,11 @@ logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stderr))
 
 
-def _backup(repository: Path, remote: remote_url.RemoteUrl) -> None:
+def _backup(repository: Path, remote: RemoteUrl) -> None:
     logger.info(f"Backing up '{repository}' to '{remote}'")
     original_permissions = repository.stat().st_mode & 0o777
-    remote.init_git_bare_if_needed(original_permissions)
+    remote.mkdirs(original_permissions)
+    remote.init_git_bare_if_needed()
     Git().run(repository, "push", "--all", "--force", remote.raw_url)
 
 
@@ -52,7 +54,7 @@ def backup(
             remote_subdirectory = Path(repository.name)
         else:
             remote_subdirectory = repository.relative_to(source_directory)
-        _backup(repository, backup_root_url.join_path(remote_subdirectory))
+        _backup(repository, backup_root_url.joinpath(remote_subdirectory))
     if not found_any:
         logger.error(f"No git repositories were found under '{source_directory}'.")
         exit(1)

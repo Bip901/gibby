@@ -4,7 +4,7 @@ import os
 import platform
 import urllib.parse
 from pathlib import Path
-from typing import Union
+from typing import BinaryIO, Union
 
 from .git import Git
 
@@ -16,7 +16,7 @@ class RemoteUrl:
         self.raw_url = raw_url
         self._parse_result = urllib.parse.urlparse(raw_url)
 
-    def join_path(self, relative_path: Union[str, Path]) -> "RemoteUrl":
+    def joinpath(self, relative_path: Union[str, Path]) -> "RemoteUrl":
         new_url = urllib.parse.urljoin(self.raw_url, str(relative_path))
         return type(self)(new_url)
 
@@ -24,13 +24,26 @@ class RemoteUrl:
         return self.raw_url
 
     @abc.abstractmethod
-    def init_git_bare_if_needed(self, permissions: int = 0o777) -> None:
+    def mkdirs(self, permissions: int = 0o777) -> None:
         """
-        Creates this directory and parent directories as necessary.
+        Creates this directory and all parent directories as necessary.
 
-        :param permissions: The filesystem permissions to apply to all created directories.
+        :param permissions: The filesystem permissions to apply to all created directories. May be combined with this processe's umask.
         """
-        pass
+
+    @abc.abstractmethod
+    def open(self, mode: str = "r") -> BinaryIO:
+        """
+        Opens a file for reading or writing, in binary mode.
+
+        :param mode: The mode, e.g. "r", "w".
+        """
+
+    @abc.abstractmethod
+    def init_git_bare_if_needed(self) -> None:
+        """
+        If this directory is empty, runs git init --bare.
+        """
 
 
 class FileRemoteUrl(RemoteUrl):
@@ -57,7 +70,7 @@ class FileRemoteUrl(RemoteUrl):
     def __str__(self) -> str:
         return str(self._local_path)
 
-    def init_git_bare_if_needed(self, permissions: int = 0o777) -> None:
+    def mkdirs(self, permissions: int = 0o777) -> None:
         missing_directories = []
         directory = self._local_path
         while not directory.exists():
@@ -68,8 +81,13 @@ class FileRemoteUrl(RemoteUrl):
             directory = next_directory
         for directory in reversed(missing_directories):
             directory.mkdir(mode=permissions)
-        if next(directory.iterdir(), None) is None:
-            logger.info(f"Initializing new git repo at {directory}")
+
+    def open(self, mode: str = "r") -> BinaryIO:
+        return self._local_path.open(mode + "b")
+
+    def init_git_bare_if_needed(self) -> None:
+        if next(self._local_path.iterdir(), None) is None:
+            logger.info(f"Initializing new git repo at {self._local_path}")
             Git().run(self._local_path, "init", "--bare")
 
 
