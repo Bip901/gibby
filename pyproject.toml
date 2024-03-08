@@ -7,7 +7,8 @@ name = "gibby"
 version = "0.0.1"
 requires-python = ">= 3.9"
 dependencies = [
-    "typer~=0.9.0"
+    "typer~=0.9.0",
+    "pydantic>=2.6.3,<3"
 ]
 
 [project.optional-dependencies]
