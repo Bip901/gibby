@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from .git import GIT_IGNORE_FILE_NAME
 
 class Config(BaseModel):
     pass
@@ -24,6 +25,8 @@ def get(directory: Path) -> Config:
 
 def set(directory: Path, config: Config) -> None:
     gibby_directory = directory / GIBBY_DIRECTORY_NAME
-    gibby_directory.mkdir(exist_ok=True)
+    if not gibby_directory.exists():
+        gibby_directory.mkdir()
+        (gibby_directory / GIT_IGNORE_FILE_NAME).write_text("*")
     config_file = gibby_directory / CONFIG_FILE_NAME
     config_file.write_text(config.model_dump_json(indent=4))
