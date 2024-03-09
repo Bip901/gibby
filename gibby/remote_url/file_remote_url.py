@@ -2,7 +2,6 @@ import logging
 import platform
 import urllib.parse
 from pathlib import Path
-from typing import BinaryIO
 
 from ..git import Git
 from .remote_url import RemoteUrl
@@ -49,7 +48,4 @@ class FileRemoteUrl(RemoteUrl):
     def init_git_bare_if_needed(self) -> None:
         if next(self._local_path.iterdir(), None) is None:
             logger.info(f"Initializing new git repo at {self._local_path}")
-            Git().create_bare_repository(self._local_path)
-
-    def open(self, mode: str) -> BinaryIO:
-        return self._local_path.open(mode + "b")
+            Git(self._local_path).create_bare_repository()

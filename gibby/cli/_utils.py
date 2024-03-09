@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .. import remote_url
-from ..git import Git
+from ..git import get_git_executable, git_directory_name
 from ..logic import is_path_ignored
 
 logger = logging.getLogger()
@@ -42,7 +42,7 @@ def regex(value: str) -> re.Pattern:
 
 def ensure_git_installed():
     try:
-        Git().git_executable  # Ensure git is installed. If not, this raises ValueError.
+        get_git_executable()
     except ValueError as ex:
         logger.error(ex)
         exit(1)
@@ -53,7 +53,6 @@ def yield_git_repositories(root: Path, ignore_dir_regex: Optional[re.Pattern] = 
     Performs a breadth-first search for git repositories within and including root.
     """
 
-    git_directory_name = Git().git_directory_name
     queue = [root]
     while queue:
         directory = queue.pop()

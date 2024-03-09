@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import urllib.parse
 from pathlib import Path
-from typing import BinaryIO
 
 
 class RemoteUrl:
@@ -33,12 +32,4 @@ class RemoteUrl:
     def init_git_bare_if_needed(self) -> None:
         """
         If this directory is empty, runs git init --bare.
-        """
-
-    @abc.abstractmethod
-    def open(self, mode: str) -> BinaryIO:
-        """
-        Opens this file for reading or writing in binary mode.
-
-        :param mode: The mode, e.g. "r", "w".
         """

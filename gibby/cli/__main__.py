@@ -29,7 +29,7 @@ def backup(
     backup_root: Annotated[
         remote_url.RemoteUrl,
         typer.Argument(
-            help="The URL of the root to back up to, for example: file:///C:/Backups. Subdirectories will be created as necessary. If the scheme is unspecified, defaults to file://.",
+            help="The local file path or URL to back up to. For example: C:/Backups. Subdirectories will be created as necessary.",
             parser=utils.url_like,
         ),
     ],
@@ -59,7 +59,7 @@ def restore(
     backup_path: Annotated[
         remote_url.RemoteUrl,
         typer.Argument(
-            help="The URL to restore from, for example: file:///C:/Backups/Foo. This follows the `git url` format (see: `git push --help`).",
+            help="The local file path or URL to restore from. For example: C:/Backups/Foo.",
             parser=utils.url_like,
         ),
     ],

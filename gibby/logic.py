@@ -1,21 +1,21 @@
+import itertools
 import logging
 import os
 import re
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from .git import Git
+from .git import Git, git_directory_name
 from .remote_url import RemoteUrl
-from .state import State
 
 logger = logging.getLogger()
 
 
 SNAPSHOT_ATTRIBUTE = "gibby-snapshot"
-BACKUP_SNAPSHOT_DIRECTORY = "snapshot"
-BACKUP_GIT_DIRECTORY = "git"
-STATE_FILE = "state.json"
+SNAPSHOT_ATTRIBUTE_FORCE = "force"
+GIBBY_SNAPSHOT_BRANCH = "gibby_internal/snapshot"
+MAX_GIT_ADD_ARGUMENTS = 32
 
 
 def is_path_ignored(path: Path, ignore_path_regex: re.Pattern) -> bool:
@@ -24,7 +24,6 @@ def is_path_ignored(path: Path, ignore_path_regex: re.Pattern) -> bool:
 
 
 def yield_non_git_files(root: Path, ignore_dir_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
-    git_directory_name = Git().git_directory_name
     queue = [root]
     while queue:
         current_directory = queue.pop()
@@ -39,14 +38,28 @@ def yield_non_git_files(root: Path, ignore_dir_regex: Optional[re.Pattern] = Non
                 queue.append(file)
 
 
-def yield_snapshot_files(repository: Path, ignore_dir_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
+def yield_batches(iterator: Iterator[Any], batch_size: int) -> Generator[list[Any], None, None]:
+    while chunk := list(itertools.islice(iterator, batch_size)):
+        yield chunk
+
+
+def yield_files_with_snapshot_attribute(
+    repository: Path, ignore_dir_regex: Optional[re.Pattern] = None
+) -> Generator[tuple[Path, str], None, None]:
     """
-    Yields files and directories in the given repository that have the snapshot attribute.
+    Yields files and directories in the given repository that have the force snapshot attribute.
     """
 
     logger.info(f"Searching for snapshot files in '{repository}'")
-    stdin = b"\0".join(str(x.relative_to(repository)).encode() for x in yield_non_git_files(repository, ignore_dir_regex))
-    stdout = Git().run_with_stdin(repository, stdin, "check-attr", "--stdin", "-z", SNAPSHOT_ATTRIBUTE)
+
+    def encode_path(path: Path) -> bytes:
+        result = str(path.relative_to(repository))
+        if path.is_dir() and not result.endswith("/"):
+            result += "/"
+        return result.encode()
+
+    stdin = b"\0".join(map(encode_path, yield_non_git_files(repository, ignore_dir_regex)))
+    stdout = Git(repository).run_with_stdin(stdin, "check-attr", "--stdin", "-z", SNAPSHOT_ATTRIBUTE)
     i = 0
     while i < len(stdout):
         try:
@@ -63,28 +76,37 @@ def yield_snapshot_files(repository: Path, ignore_dir_regex: Optional[re.Pattern
         value = stdout[i:next_separator].decode()
         i = next_separator + 1
         if value != "unspecified":
-            yield repository / path.decode()
+            yield (repository / path.decode(), value)
 
 
 def do_backup(repository: Path, remote: RemoteUrl, ignore_dir_regex: Optional[re.Pattern] = None) -> None:
     logger.info(f"Backing up '{repository}' to '{remote}'")
 
     original_permissions = repository.stat().st_mode & 0o777
-    remote_repo = remote.joinpath(BACKUP_GIT_DIRECTORY)
-    remote_repo.mkdirs(original_permissions)
-    remote_repo.init_git_bare_if_needed()
-    Git().run(repository, "push", "--all", "--force", remote_repo.raw_url)
+    remote.mkdirs(original_permissions)
+    remote.init_git_bare_if_needed()
 
-    snapshot_dir = remote.joinpath(BACKUP_SNAPSHOT_DIRECTORY)
-    snapshot_dir.mkdirs(original_permissions)
-    snapshot_files = list(yield_snapshot_files(repository, ignore_dir_regex))
-    logger.info(f"Snapshotting {len(snapshot_files)} files")
-    for file in snapshot_files:
-        pass  # TODO
+    files_with_snapshot_attribute = list(yield_files_with_snapshot_attribute(repository, ignore_dir_regex))
+    git = Git(repository)
+    current_branch = git.get_current_branch()
+    git("branch", "-f", "--no-track", GIBBY_SNAPSHOT_BRANCH)
+    git.checkout(GIBBY_SNAPSHOT_BRANCH)
+    git("commit", "--no-verify", "--allow-empty", "-m", f"staged@{current_branch}")
+    git("add", ".")
+    files_to_force_snapshot = filter(lambda pair: pair[1] == SNAPSHOT_ATTRIBUTE_FORCE, files_with_snapshot_attribute)
+    for batch in yield_batches(files_to_force_snapshot, MAX_GIT_ADD_ARGUMENTS):
+        git("add", "--force", batch)
+    git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged@{current_branch}")
+    # checkout original branch without changing the working tree
+    git("symbolic-ref", "HEAD", f"refs/heads/{current_branch}")
+    # All changes are now staged, including those that were unstaged before.
+    git("reset", f"{GIBBY_SNAPSHOT_BRANCH}^")
+    git("reset", "--soft", f"{GIBBY_SNAPSHOT_BRANCH}^^")
 
-    state = State(current_branch=Git().get_current_branch(repository))
-    with remote.joinpath(STATE_FILE).open("w") as f:
-        f.write(state.to_json().encode())
+    try:
+        git("push", "--all", "--force", remote.raw_url)
+    finally:
+        git("branch", "--delete", "--force", GIBBY_SNAPSHOT_BRANCH)
 
 
 def do_restore(remote: RemoteUrl, repository: Path) -> None:
