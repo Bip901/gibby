@@ -33,6 +33,10 @@ def backup(
         ),
     ],
 ) -> None:
+    """
+    Recursively backs up the given file tree to the given remote.
+    """
+    
     try:
         backup_root_url = remote_url.parse(backup_root)
         Git().git_executable

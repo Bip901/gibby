@@ -1,7 +1,7 @@
 """
-\b
-Files marked with the git attribute "gibby-snapshot" will be saved exactly as they are in the working directory, even if they're ignored by git.
-See "git help attributes".
+Commands regarding snapshots.
+Gibby saves files marked with the git attribute "gibby-snapshot" exactly as they are in the working directory, even if they're ignored by git.
+See "git help attributes" for help on marking files with attributes.
 """
 
 from pathlib import Path
