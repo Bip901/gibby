@@ -7,9 +7,8 @@ from typing import Annotated, Optional
 import typer
 
 from .. import logic, remote_url
-from ..git import Git
+from . import _utils as utils
 from . import snapshot
-from ._utils import IGNORE_DIRECTORY_REGEX_HELP, ensure_git_installed, regex_argument, yield_git_repositories
 
 app = typer.Typer(no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(snapshot.app, name="snapshot")
@@ -28,32 +27,22 @@ def backup(
         ),
     ],
     backup_root: Annotated[
-        str,
+        remote_url.RemoteUrl,
         typer.Argument(
-            help="The URL of the root to back up to, for example: file:///C:/Backups. Subdirectories will be created as necessary. If the scheme is unspecified, defaults to file://."
+            help="The URL of the root to back up to, for example: file:///C:/Backups. Subdirectories will be created as necessary. If the scheme is unspecified, defaults to file://.",
+            parser=utils.url_like,
         ),
     ],
     ignore_dir: Annotated[
-        Optional[re.Pattern], typer.Option(help=IGNORE_DIRECTORY_REGEX_HELP, parser=regex_argument)
+        Optional[re.Pattern], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
     ] = None,
 ) -> None:
     """
     Recursively backs up the given file tree to the given remote.
     """
 
-    ensure_git_installed()
-    try:
-        backup_root_url = remote_url.parse(backup_root)
-    except ValueError as ex:
-        logger.error(ex)
-        exit(1)
-    try:
-        ignore_path_regex = re.compile(ignore_dir) if ignore_dir else None
-    except re.error as ex:
-        logger.error(f"Invalid regex pattern '{ex.pattern}': {ex.msg}")
-        exit(1)
-
-    repositories = list(yield_git_repositories(source_directory, ignore_path_regex))
+    utils.ensure_git_installed()
+    repositories = list(utils.yield_git_repositories(source_directory, ignore_dir))
     if not repositories:
         logger.error(f"No git repositories were found under '{source_directory}'.")
         exit(1)
@@ -62,15 +51,16 @@ def backup(
             remote_subdirectory = Path(repository.name)
         else:
             remote_subdirectory = repository.relative_to(source_directory)
-        logic.do_backup(repository, backup_root_url.joinpath(remote_subdirectory))
+        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory))
 
 
 @app.command()
 def restore(
     backup_path: Annotated[
-        str,
+        remote_url.RemoteUrl,
         typer.Argument(
-            help="The URL to restore from, for example: file:///C:/Backups/Foo. This follows the `git url` format (see: `git push --help`)."
+            help="The URL to restore from, for example: file:///C:/Backups/Foo. This follows the `git url` format (see: `git push --help`).",
+            parser=utils.url_like,
         ),
     ],
     restore_to: Annotated[
@@ -80,12 +70,7 @@ def restore(
         ),
     ] = None,
 ) -> None:
-    try:
-        backup_path_url = remote_url.parse(backup_path)
-        Git().git_executable
-    except ValueError as ex:
-        logger.error(ex)
-        exit(1)
+    utils.ensure_git_installed()
     if not restore_to:
         restore_to = Path(".")
 

@@ -4,6 +4,7 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Optional
 
+from .. import remote_url
 from ..git import Git
 from ..logic import is_path_ignored
 
@@ -15,7 +16,23 @@ IGNORE_DIRECTORY_REGEX_HELP = """Directories whose path matches this regex will 
     For example, '.*/foo' ignores all directories named foo, whereas 'foo' only ignores the top-level foo directory."""
 
 
-def regex_argument(value: str) -> re.Pattern:
+def url_like(value: str) -> remote_url.RemoteUrl:
+    """
+    Parses a RemoteUrl argument from the CLI.
+    Note: this function's name is shown to the user as the argument type.
+    """
+    try:
+        return remote_url.parse(value)
+    except ValueError as ex:
+        logger.error(ex)
+        exit(1)
+
+
+def regex(value: str) -> re.Pattern:
+    """
+    Parses a regex argument from the CLI.
+    Note: this function's name is shown to the user as the argument type.
+    """
     try:
         return re.compile(value)
     except re.error as ex:

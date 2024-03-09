@@ -13,7 +13,7 @@ from typing import Annotated, Optional
 import typer
 
 from .. import logic
-from ._utils import IGNORE_DIRECTORY_REGEX_HELP, ensure_git_installed, regex_argument, yield_git_repositories
+from . import _utils as utils
 
 app = typer.Typer(no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]}, help=__doc__)
 
@@ -26,22 +26,15 @@ def cli_list(
         Optional[Path],
         typer.Argument(help="The directory to list the snapshot for. Defaults to the current working directory."),
     ] = None,
-    ignore_dir: Annotated[
-        Optional[re.Pattern], typer.Option(help=IGNORE_DIRECTORY_REGEX_HELP, parser=regex_argument)
-    ] = None,
+    ignore_dir: Annotated[Optional[re.Pattern], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)] = None,
 ) -> None:
     """
     Lists all files that will be included in the snapshot.
     """
 
-    ensure_git_installed()
-    try:
-        ignore_path_regex = re.compile(ignore_dir) if ignore_dir else None
-    except re.error as ex:
-        logger.error(f"Invalid regex pattern '{ex.pattern}': {ex.msg}")
-        exit(1)
+    utils.ensure_git_installed()
     source_directory = source_directory or Path(".")
-    repositories = list(yield_git_repositories(source_directory, ignore_path_regex))
+    repositories = list(utils.yield_git_repositories(source_directory, ignore_dir))
     if not repositories:
         logger.error(f"No git repositories were found under '{source_directory}'.")
         exit(1)
