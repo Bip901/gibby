@@ -2,6 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Union
+from asyncio import StreamReader
 
 GIT_DIR_ENVIRONMENT_VAR = "GIT_DIR"
 GIT_DIR_DEFAULT = ".git"
@@ -41,6 +42,32 @@ class Git(metaclass=Singleton):
             ) from ex
         return self._git_executable
 
+    def get_current_branch(self, cwd: Union[Path, str]) -> Optional[str]:
+        """
+        Returns the name of the current branch, or None if in detached head mode.
+        """
+
+        result = self.run(cwd, "branch", "--show-current").rstrip("\n")
+        if result:
+            return result
+        return None
+
+    def checkout(self, cwd: Union[Path, str], branch: str) -> None:
+        """
+        Performs git checkout to the given branch.
+        """
+        self.run(cwd, "checkout", branch)
+
+    def create_bare_repository(self, cwd: Union[Path, str]) -> None:
+        """
+        Creates a new bare repository at the given working directory.
+        """
+        self.run(cwd, "init", "--bare")
+
     def run(self, cwd: Union[Path, str], *args: str) -> str:
-        process = subprocess.run([self.git_executable, *args], stdout=subprocess.PIPE, text=True, cwd=cwd, check=True)
+        process = subprocess.run([self.git_executable, *args], input=None, stdout=subprocess.PIPE, text=True, cwd=cwd, check=True)
+        return process.stdout
+    
+    def run_with_stdin(self, cwd: Union[Path, str], stdin: bytes, *args: str) -> bytes:
+        process = subprocess.run([self.git_executable, *args], input=stdin, stdout=subprocess.PIPE, text=False, cwd=cwd, check=True)
         return process.stdout

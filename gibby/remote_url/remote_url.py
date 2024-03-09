@@ -12,7 +12,10 @@ class RemoteUrl:
         self._parse_result = urllib.parse.urlparse(raw_url)
 
     def joinpath(self, relative_path: str | Path) -> RemoteUrl:
-        new_url = urllib.parse.urljoin(self.raw_url, str(relative_path))
+        raw_url = self.raw_url
+        if not raw_url.endswith("/"):
+            raw_url += "/"  # Mark as a directory for proper urljoin
+        new_url = urllib.parse.urljoin(raw_url, str(relative_path))
         return type(self)(new_url)
 
     def __str__(self) -> str:
@@ -30,4 +33,12 @@ class RemoteUrl:
     def init_git_bare_if_needed(self) -> None:
         """
         If this directory is empty, runs git init --bare.
+        """
+
+    @abc.abstractmethod
+    def open(self, mode: str) -> BinaryIO:
+        """
+        Opens this file for reading or writing in binary mode.
+
+        :param mode: The mode, e.g. "r", "w".
         """

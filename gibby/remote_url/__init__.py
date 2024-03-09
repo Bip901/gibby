@@ -20,8 +20,6 @@ def parse(url_string: str) -> RemoteUrl:
         canon_local_path = str(Path(url_string).absolute()).replace(os.sep, "/")
         url_string = "file:///" + urllib.parse.quote(canon_local_path)
         scheme = "file"
-    if not url_string.endswith("/"):
-        url_string += "/"  # Mark as a directory for proper urljoin
 
     if scheme in KNOWN_SCHEMES:
         return KNOWN_SCHEMES[scheme](url_string)

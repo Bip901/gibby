@@ -49,4 +49,7 @@ class FileRemoteUrl(RemoteUrl):
     def init_git_bare_if_needed(self) -> None:
         if next(self._local_path.iterdir(), None) is None:
             logger.info(f"Initializing new git repo at {self._local_path}")
-            Git().run(self._local_path, "init", "--bare")
+            Git().create_bare_repository(self._local_path)
+
+    def open(self, mode: str) -> BinaryIO:
+        return self._local_path.open(mode + "b")
