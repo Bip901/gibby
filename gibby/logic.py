@@ -23,14 +23,15 @@ def is_path_ignored(path: Path, ignore_path_regex: re.Pattern) -> bool:
     return bool(ignore_path_regex.match(path_string))
 
 
-def yield_non_git_files(root: Path, ignore_path_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
+def yield_non_git_files(root: Path, ignore_dir_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
     git_directory_name = Git().git_directory_name
     queue = [root]
     while queue:
         current_directory = queue.pop()
-        if current_directory.name == git_directory_name or (
-            ignore_path_regex is not None and is_path_ignored(current_directory.relative_to(root), ignore_path_regex)
-        ):
+        if current_directory.name == git_directory_name:
+            continue
+        if ignore_dir_regex is not None and is_path_ignored(current_directory.relative_to(root), ignore_dir_regex):
+            logger.info(f"Skipping directory {current_directory}")
             continue
         for file in current_directory.iterdir():
             yield file
@@ -38,13 +39,13 @@ def yield_non_git_files(root: Path, ignore_path_regex: Optional[re.Pattern] = No
                 queue.append(file)
 
 
-def yield_snapshot_files(repository: Path) -> Generator[Path, None, None]:
+def yield_snapshot_files(repository: Path, ignore_dir_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
     """
     Yields files and directories in the given repository that have the snapshot attribute.
     """
 
     logger.info(f"Searching for snapshot files in '{repository}'")
-    stdin = b"\0".join(str(x.relative_to(repository)).encode() for x in yield_non_git_files(repository))
+    stdin = b"\0".join(str(x.relative_to(repository)).encode() for x in yield_non_git_files(repository, ignore_dir_regex))
     stdout = Git().run_with_stdin(repository, stdin, "check-attr", "--stdin", "-z", SNAPSHOT_ATTRIBUTE)
     i = 0
     while i < len(stdout):
@@ -65,7 +66,7 @@ def yield_snapshot_files(repository: Path) -> Generator[Path, None, None]:
             yield repository / path.decode()
 
 
-def do_backup(repository: Path, remote: RemoteUrl) -> None:
+def do_backup(repository: Path, remote: RemoteUrl, ignore_dir_regex: Optional[re.Pattern] = None) -> None:
     logger.info(f"Backing up '{repository}' to '{remote}'")
 
     original_permissions = repository.stat().st_mode & 0o777
@@ -76,7 +77,9 @@ def do_backup(repository: Path, remote: RemoteUrl) -> None:
 
     snapshot_dir = remote.joinpath(BACKUP_SNAPSHOT_DIRECTORY)
     snapshot_dir.mkdirs(original_permissions)
-    for file in yield_snapshot_files(repository):
+    snapshot_files = list(yield_snapshot_files(repository, ignore_dir_regex))
+    logger.info(f"Snapshotting {len(snapshot_files)} files")
+    for file in snapshot_files:
         pass  # TODO
 
     state = State(current_branch=Git().get_current_branch(repository))

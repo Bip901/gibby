@@ -51,7 +51,7 @@ def backup(
             remote_subdirectory = Path(repository.name)
         else:
             remote_subdirectory = repository.relative_to(source_directory)
-        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory))
+        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory), ignore_dir)
 
 
 @app.command()

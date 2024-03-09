@@ -42,7 +42,7 @@ def cli_list(
     count = 0
     for repository in repositories:
         try:
-            for file in logic.yield_snapshot_files(repository):
+            for file in logic.yield_snapshot_files(repository, ignore_dir):
                 print(file)
                 count += 1
         except subprocess.CalledProcessError as ex:

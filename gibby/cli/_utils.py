@@ -48,7 +48,7 @@ def ensure_git_installed():
         exit(1)
 
 
-def yield_git_repositories(root: Path, ignore_path_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
+def yield_git_repositories(root: Path, ignore_dir_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
     """
     Performs a breadth-first search for git repositories within and including root.
     """
@@ -57,8 +57,9 @@ def yield_git_repositories(root: Path, ignore_path_regex: Optional[re.Pattern] =
     queue = [root]
     while queue:
         directory = queue.pop()
-        if ignore_path_regex is not None:
-            if is_path_ignored(directory.relative_to(root), ignore_path_regex):
+        if ignore_dir_regex is not None:
+            if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
+                logger.info(f"Skipping directory {directory}")
                 continue
         if (directory / git_directory_name).exists():
             yield directory
