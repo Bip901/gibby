@@ -2,7 +2,6 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Union
-from asyncio import StreamReader
 
 GIT_DIR_ENVIRONMENT_VAR = "GIT_DIR"
 GIT_DIR_DEFAULT = ".git"
@@ -65,9 +64,13 @@ class Git(metaclass=Singleton):
         self.run(cwd, "init", "--bare")
 
     def run(self, cwd: Union[Path, str], *args: str) -> str:
-        process = subprocess.run([self.git_executable, *args], input=None, stdout=subprocess.PIPE, text=True, cwd=cwd, check=True)
+        process = subprocess.run(
+            [self.git_executable, *args], input=None, stdout=subprocess.PIPE, text=True, cwd=cwd, check=True
+        )
         return process.stdout
-    
+
     def run_with_stdin(self, cwd: Union[Path, str], stdin: bytes, *args: str) -> bytes:
-        process = subprocess.run([self.git_executable, *args], input=stdin, stdout=subprocess.PIPE, text=False, cwd=cwd, check=True)
+        process = subprocess.run(
+            [self.git_executable, *args], input=stdin, stdout=subprocess.PIPE, text=False, cwd=cwd, check=True
+        )
         return process.stdout

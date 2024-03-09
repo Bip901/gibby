@@ -1,6 +1,9 @@
 import logging
+import os
+import re
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
+from typing import Optional
 
 from .git import Git
 from .remote_url import RemoteUrl
@@ -15,15 +18,24 @@ BACKUP_GIT_DIRECTORY = "git"
 STATE_FILE = "state.json"
 
 
-def yield_non_git_files(directory: Path) -> Generator[Path, None, None]:
+def is_path_ignored(path: Path, ignore_path_regex: re.Pattern) -> bool:
+    path_string = str(path).replace(os.sep, "/")
+    return bool(ignore_path_regex.match(path_string))
+
+
+def yield_non_git_files(root: Path, ignore_path_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
     git_directory_name = Git().git_directory_name
-    yield directory
-    for file in directory.iterdir():
-        if file.is_dir():
-            if file.name == git_directory_name:
-                continue
-            yield from yield_non_git_files(file)
-        yield file
+    queue = [root]
+    while queue:
+        current_directory = queue.pop()
+        if current_directory.name == git_directory_name or (
+            ignore_path_regex is not None and is_path_ignored(current_directory.relative_to(root), ignore_path_regex)
+        ):
+            continue
+        for file in current_directory.iterdir():
+            yield file
+            if file.is_dir():
+                queue.append(file)
 
 
 def yield_snapshot_files(repository: Path) -> Generator[Path, None, None]:
@@ -31,6 +43,7 @@ def yield_snapshot_files(repository: Path) -> Generator[Path, None, None]:
     Yields files and directories in the given repository that have the snapshot attribute.
     """
 
+    logger.info(f"Searching for snapshot files in '{repository}'")
     stdin = b"\0".join(str(x.relative_to(repository)).encode() for x in yield_non_git_files(repository))
     stdout = Git().run_with_stdin(repository, stdin, "check-attr", "--stdin", "-z", SNAPSHOT_ATTRIBUTE)
     i = 0
