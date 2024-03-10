@@ -1,5 +1,3 @@
-
-
 import logging
 import re
 import subprocess
@@ -11,10 +9,14 @@ import typer
 from .. import logic
 from . import _utils as utils
 
-app = typer.Typer(no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]}, help=f"""Commands regarding snapshots.
+app = typer.Typer(
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help=f"""Commands regarding snapshots.
 Gibby saves files with the git attribute '{logic.SNAPSHOT_ATTRIBUTE}' set to '{logic.SNAPSHOT_ATTRIBUTE_FORCE}' exactly as they are in the working directory, even if they're git-ignored.
 See "git help attributes" for help on marking files with attributes.
-""")
+""",
+)
 
 logger = logging.getLogger()
 

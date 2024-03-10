@@ -23,7 +23,7 @@ def backup(
     source_directory: Annotated[
         Path,
         typer.Argument(
-            help="This directory will be searched recursively for git repositories, which will be backed up."
+            help="This directory will be searched recursively for git repositories, which will be backed up, except for repositories excluded by --ignore-dir."
         ),
     ],
     backup_root: Annotated[
@@ -51,7 +51,7 @@ def backup(
             remote_subdirectory = Path(repository.name)
         else:
             remote_subdirectory = repository.relative_to(source_directory)
-        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory), ignore_dir)
+        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory))
 
 
 @app.command()

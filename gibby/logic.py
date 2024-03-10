@@ -79,26 +79,36 @@ def yield_files_with_snapshot_attribute(
             yield (repository / path.decode(), value)
 
 
-def do_backup(repository: Path, remote: RemoteUrl, ignore_dir_regex: Optional[re.Pattern] = None) -> None:
+def do_backup(repository: Path, remote: RemoteUrl) -> None:
     logger.info(f"Backing up '{repository}' to '{remote}'")
 
     original_permissions = repository.stat().st_mode & 0o777
     remote.mkdirs(original_permissions)
     remote.init_git_bare_if_needed()
 
-    files_with_snapshot_attribute = list(yield_files_with_snapshot_attribute(repository, ignore_dir_regex))
+    files_with_snapshot_attribute = list(yield_files_with_snapshot_attribute(repository))
     git = Git(repository)
-    current_branch = git.get_current_branch()
+    current_branch_or_commit = git.get_current_branch()
+    if is_detached_head := current_branch_or_commit is None:
+        current_branch_or_commit = git.get_current_commit_hash()
+        serialized_branch_name = ":" + current_branch_or_commit
+    else:
+        serialized_branch_name = current_branch_or_commit
+
     git("branch", "-f", "--no-track", GIBBY_SNAPSHOT_BRANCH)
     git.checkout(GIBBY_SNAPSHOT_BRANCH)
-    git("commit", "--no-verify", "--allow-empty", "-m", f"staged@{current_branch}")
+    git("commit", "--no-verify", "--allow-empty", "-m", f"staged@{serialized_branch_name}")
     git("add", ".")
     files_to_force_snapshot = filter(lambda pair: pair[1] == SNAPSHOT_ATTRIBUTE_FORCE, files_with_snapshot_attribute)
     for batch in yield_batches(files_to_force_snapshot, MAX_GIT_ADD_ARGUMENTS):
         git("add", "--force", batch)
-    git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged@{current_branch}")
-    # checkout original branch without changing the working tree
-    git("symbolic-ref", "HEAD", f"refs/heads/{current_branch}")
+    git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged@{serialized_branch_name}")
+    if is_detached_head:
+        # return to detached head state
+        git.checkout(current_branch_or_commit)
+    else:
+        # checkout original branch without changing the working tree
+        git("symbolic-ref", "HEAD", f"refs/heads/{current_branch_or_commit}")
     # All changes are now staged, including those that were unstaged before.
     git("reset", f"{GIBBY_SNAPSHOT_BRANCH}^")
     git("reset", "--soft", f"{GIBBY_SNAPSHOT_BRANCH}^^")

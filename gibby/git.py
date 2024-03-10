@@ -45,6 +45,13 @@ class Git:
             return result
         return None
 
+    def get_current_commit_hash(self) -> str:
+        """
+        Returns the full hash of the current commit (HEAD).
+        """
+
+        return self("rev-parse", "HEAD").rstrip("\n")
+
     def checkout(self, branch: str) -> None:
         """
         Performs git checkout to the given branch.
