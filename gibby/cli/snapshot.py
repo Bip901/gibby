@@ -50,7 +50,7 @@ def cli_list(
         typer.Argument(help="The directory to list the snapshot for. Defaults to the current working directory."),
     ] = None,
     ignore_dir: Annotated[
-        Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
+        Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, click_type=utils.RegexParser())
     ] = None,
 ) -> None:
     """

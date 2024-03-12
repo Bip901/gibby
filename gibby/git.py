@@ -94,6 +94,16 @@ class Git:
         """
         self("init", "--bare")
 
+    def does_remote_exist(self, remote_url: str) -> bool:
+        """
+        Connects to the given remote URL and tests if it responds properly.
+        """
+        try:
+            self("ls-remote", "--heads", remote_url, stderr=subprocess.DEVNULL)
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
     def __call__(self, *args: str, stdin: Optional[bytes] = None, stderr: Optional[int] = None) -> bytes:
         process = subprocess.run(
             [get_git_executable(), *args],

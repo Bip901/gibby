@@ -4,6 +4,8 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Optional
 
+import click
+
 from .. import remote_url
 from ..git import get_git_executable, git_directory_name
 from ..logic import is_path_ignored
@@ -16,28 +18,42 @@ IGNORE_DIRECTORY_REGEX_HELP = """Directories whose path matches this regex will 
     For example, '.*/foo' ignores all directories named foo, whereas 'foo' only ignores the top-level foo directory."""
 
 
-def url_like(value: str) -> remote_url.RemoteUrl:
-    """
-    Parses a RemoteUrl argument from the CLI.
-    Note: this function's name is shown to the user as the argument type.
-    """
-    try:
-        return remote_url.parse(value)
-    except ValueError as ex:
-        logger.error(ex)
-        exit(1)
+class RemoteUrlParser(click.ParamType):
+    name = "url_like"
+
+    def __init__(self, tip: Optional[str] = None) -> None:
+        super().__init__()
+        self.tip = tip
+
+    def convert(
+        self,
+        value: str,
+        param: Optional[click.Parameter],
+        ctx: Optional[click.Context],
+    ) -> remote_url.RemoteUrl:
+        try:
+            return remote_url.parse(value)
+        except ValueError as ex:
+            logger.error(ex)
+            if self.tip is not None:
+                logger.info(self.tip)
+            exit(1)
 
 
-def regex(value: str) -> re.Pattern[str]:
-    """
-    Parses a regex argument from the CLI.
-    Note: this function's name is shown to the user as the argument type.
-    """
-    try:
-        return re.compile(value)
-    except re.error as ex:
-        logger.error(f"Invalid regex pattern '{ex.pattern!r}': {ex.msg}")
-        exit(1)
+class RegexParser(click.ParamType):
+    name = "regex"
+
+    def convert(
+        self,
+        value: str,
+        param: Optional[click.Parameter],
+        ctx: Optional[click.Context],
+    ) -> re.Pattern[str]:
+        try:
+            return re.compile(value)
+        except re.error as ex:
+            logger.error(f"Invalid regex pattern '{ex.pattern!r}': {ex.msg}")
+            exit(1)
 
 
 def ensure_git_installed() -> None:

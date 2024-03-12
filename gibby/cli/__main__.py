@@ -30,11 +30,11 @@ def backup(
         remote_url.RemoteUrl,
         typer.Argument(
             help="The local file path or URL to back up to. For example: C:/Backups. Subdirectories will be created as necessary.",
-            parser=utils.url_like,
+            click_type=utils.RemoteUrlParser(tip="Tip: Try using `backup-single`, which supports more URL schemes."),
         ),
     ],
     ignore_dir: Annotated[
-        Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
+        Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, click_type=utils.RegexParser())
     ] = None,
 ) -> None:
     """
@@ -51,7 +51,33 @@ def backup(
             remote_subdirectory = Path(repository.name)
         else:
             remote_subdirectory = repository.relative_to(source_directory)
-        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory), snapshot=True)
+        remote_path = backup_root.joinpath(remote_subdirectory)
+        original_permissions = repository.stat().st_mode & 0o777
+        remote_path.mkdirs(original_permissions)
+        remote_path.init_git_bare_if_needed()
+        logic.do_backup(repository, remote_path.raw_url, snapshot=True, test_connectivity=False)
+
+
+@app.command()
+def backup_single(
+    source_directory: Annotated[
+        Path,
+        typer.Argument(help="This git repository will be backed up."),
+    ],
+    backup_url: Annotated[
+        str,
+        typer.Argument(
+            help="The URL to back up to, in a format `git push` would understand (see: `git help push`, section GIT URLS).",
+        ),
+    ],
+) -> None:
+    """
+    Backs up a single repository.
+    As opposed 'backup', 'backup-single' supports any URL format your git supports, because it performs no extra logic on the remote.
+    """
+
+    utils.ensure_git_installed()
+    logic.do_backup(source_directory, backup_url, snapshot=True, test_connectivity=True)
 
 
 @app.command()
@@ -60,7 +86,7 @@ def restore(
         remote_url.RemoteUrl,
         typer.Argument(
             help="The local file path or URL to restore from. For example: C:/Backups/Foo.",
-            parser=utils.url_like,
+            click_type=utils.RemoteUrlParser(),
         ),
     ],
     restore_to: Annotated[

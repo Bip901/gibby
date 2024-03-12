@@ -24,7 +24,9 @@ def is_path_ignored(path: Path, ignore_path_regex: re.Pattern[str]) -> bool:
     return bool(ignore_path_regex.match(path_string))
 
 
-def yield_non_git_paths(root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None) -> Generator[Path, None, None]:
+def yield_possibly_snapshotted_paths(
+    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
+) -> Generator[Path, None, None]:
     """
     Performs breadth-first search for all descendant paths which aren't git-internal files.
     """
@@ -34,6 +36,7 @@ def yield_non_git_paths(root: Path, ignore_dir_regex: Optional[re.Pattern[str]] 
         current_directory = queue.pop()
         if current_directory.name == git_directory_name:
             # Presumably these are the only two directories within .git the user might want to back up.
+            # git disallows adding files from the .git directory, even with --force, so these require special treatment.
             # Backing up the "objects" directory, for example, is unsupported and undefined in gibby.
             queue.extend([current_directory / "hooks", current_directory / "info"])
             continue
@@ -66,7 +69,7 @@ def yield_paths_with_snapshot_attribute(
             result += "/"
         return result.encode()
 
-    stdin = b"\0".join(map(encode_path, yield_non_git_paths(repository, ignore_dir_regex)))
+    stdin = b"\0".join(map(encode_path, yield_possibly_snapshotted_paths(repository, ignore_dir_regex)))
     stdout = Git(repository)("check-attr", "--stdin", "-z", SNAPSHOT_ATTRIBUTE, stdin=stdin)
     i = 0
     while i < len(stdout):
@@ -139,20 +142,22 @@ def do_snapshot(repository: Path) -> Generator[None, None, None]:
         git("branch", "--delete", "--force", GIBBY_SNAPSHOT_BRANCH)
 
 
-def do_backup(repository: Path, remote: RemoteUrl, snapshot: bool) -> None:
+def do_backup(repository: Path, remote: str, snapshot: bool, test_connectivity: bool) -> None:
     logger.info(f"Backing up '{repository}' to '{remote}'")
 
-    original_permissions = repository.stat().st_mode & 0o777
-    remote.mkdirs(original_permissions)
-    remote.init_git_bare_if_needed()
+    if test_connectivity:
+        logger.info(f"Checking connectivity with remote '{remote}'")
+        if not Git(repository).does_remote_exist(remote):
+            logger.error(f"Remote '{remote}' does not seem to exist! Skipping '{repository}'.")
+            return
+        logger.info("Connectivity check passed")
 
     snapshot_cleaner: AbstractContextManager[Any] = do_snapshot(repository) if snapshot else nullcontext()
-
     try:
         with snapshot_cleaner:
-            Git(repository)("push", "--all", "--force", remote.raw_url)
+            Git(repository)("push", "--all", "--force", remote)
     except SnapshotError as ex:
-        logger.warning(ex.message + f" Skipping '{repository}'.")
+        logger.error(ex.message + f" Skipping '{repository}'.")
 
 
 def do_restore(remote: RemoteUrl, repository: Path) -> None:
