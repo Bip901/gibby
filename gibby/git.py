@@ -63,30 +63,30 @@ class Git:
     def is_ongoing_cherry_pick(self) -> bool:
         try:
             self("rev-parse", "--verify", "CHERRY_PICK_HEAD", stderr=subprocess.DEVNULL)
-            return False
-        except subprocess.CalledProcessError:
             return True
+        except subprocess.CalledProcessError:
+            return False
 
     def is_ongoing_merge(self) -> bool:
         try:
             self("rev-parse", "--verify", "MERGE_HEAD", stderr=subprocess.DEVNULL)
-            return False
-        except subprocess.CalledProcessError:
             return True
+        except subprocess.CalledProcessError:
+            return False
 
     def is_ongoing_rebase(self) -> bool:
         try:
             self("rev-parse", "--verify", "REBASE_HEAD", stderr=subprocess.DEVNULL)
-            return False
-        except subprocess.CalledProcessError:
             return True
+        except subprocess.CalledProcessError:
+            return False
 
     def is_ongoing_revert(self) -> bool:
         try:
             self("rev-parse", "--verify", "REVERT_HEAD", stderr=subprocess.DEVNULL)
-            return False
-        except subprocess.CalledProcessError:
             return True
+        except subprocess.CalledProcessError:
+            return False
 
     def create_bare_repository(self) -> None:
         """

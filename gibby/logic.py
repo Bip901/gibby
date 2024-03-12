@@ -137,18 +137,13 @@ def do_backup(repository: Path, remote: RemoteUrl, snapshot: bool) -> None:
     remote.mkdirs(original_permissions)
     remote.init_git_bare_if_needed()
 
-    snapshot_cleaner: AbstractContextManager[Any]
-    if snapshot:
-        try:
-            snapshot_cleaner = do_snapshot(repository)
-        except LogicError as ex:
-            logger.warning(ex.message + f" Skipping '{repository}'.")
-            return
-    else:
-        snapshot_cleaner = nullcontext()
+    snapshot_cleaner: AbstractContextManager[Any] = do_snapshot(repository) if snapshot else nullcontext()
 
-    with snapshot_cleaner:
-        Git(repository)("push", "--all", "--force", remote.raw_url)
+    try:
+        with snapshot_cleaner:
+            Git(repository)("push", "--all", "--force", remote.raw_url)
+    except LogicError as ex:
+        logger.warning(ex.message + f" Skipping '{repository}'.")
 
 
 def do_restore(remote: RemoteUrl, repository: Path) -> None:
