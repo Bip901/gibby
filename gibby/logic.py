@@ -81,7 +81,7 @@ def yield_files_with_snapshot_attribute(
             yield (repository / path.decode(), value_enum)
 
 
-class LogicError(Exception):
+class SnapshotError(Exception):
     def __init__(self, message: str) -> None:
         super().__init__()
         self.message = message
@@ -98,15 +98,17 @@ def do_snapshot(repository: Path) -> Generator[None, None, None]:
     }
     for check in checks_to_error_messages:
         if check():
-            raise LogicError(f"Can't snapshot during an in-progress {checks_to_error_messages[check]}.")
-    files_with_snapshot_attribute = list(yield_files_with_snapshot_attribute(repository))
+            raise SnapshotError(f"Can't snapshot during an in-progress {checks_to_error_messages[check]}.")
     current_branch_or_commit = git.get_current_branch()
     if is_detached_head := current_branch_or_commit is None:
         current_branch_or_commit = git.get_current_commit_hash()
         serialized_branch_name = ":" + current_branch_or_commit
     else:
         serialized_branch_name = current_branch_or_commit
+        if current_branch_or_commit == GIBBY_SNAPSHOT_BRANCH:
+            raise SnapshotError(f"Refusing to snapshot a repository with branch '{GIBBY_SNAPSHOT_BRANCH}' checked-out.")
 
+    files_with_snapshot_attribute = list(yield_files_with_snapshot_attribute(repository))
     git("branch", "-f", "--no-track", GIBBY_SNAPSHOT_BRANCH)
     git("symbolic-ref", "HEAD", f"refs/heads/{GIBBY_SNAPSHOT_BRANCH}")
     git("commit", "--no-verify", "--allow-empty", "-m", f"staged@{serialized_branch_name}")
@@ -142,7 +144,7 @@ def do_backup(repository: Path, remote: RemoteUrl, snapshot: bool) -> None:
     try:
         with snapshot_cleaner:
             Git(repository)("push", "--all", "--force", remote.raw_url)
-    except LogicError as ex:
+    except SnapshotError as ex:
         logger.warning(ex.message + f" Skipping '{repository}'.")
 
 
