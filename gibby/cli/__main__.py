@@ -34,7 +34,7 @@ def backup(
         ),
     ],
     ignore_dir: Annotated[
-        Optional[re.Pattern], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
+        Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
     ] = None,
 ) -> None:
     """
@@ -51,7 +51,7 @@ def backup(
             remote_subdirectory = Path(repository.name)
         else:
             remote_subdirectory = repository.relative_to(source_directory)
-        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory))
+        logic.do_backup(repository, backup_root.joinpath(remote_subdirectory), snapshot=True)
 
 
 @app.command()

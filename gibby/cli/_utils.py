@@ -28,7 +28,7 @@ def url_like(value: str) -> remote_url.RemoteUrl:
         exit(1)
 
 
-def regex(value: str) -> re.Pattern:
+def regex(value: str) -> re.Pattern[str]:
     """
     Parses a regex argument from the CLI.
     Note: this function's name is shown to the user as the argument type.
@@ -36,11 +36,11 @@ def regex(value: str) -> re.Pattern:
     try:
         return re.compile(value)
     except re.error as ex:
-        logger.error(f"Invalid regex pattern '{ex.pattern}': {ex.msg}")
+        logger.error(f"Invalid regex pattern '{ex.pattern!r}': {ex.msg}")
         exit(1)
 
 
-def ensure_git_installed():
+def ensure_git_installed() -> None:
     try:
         get_git_executable()
     except ValueError as ex:
@@ -48,7 +48,9 @@ def ensure_git_installed():
         exit(1)
 
 
-def yield_git_repositories(root: Path, ignore_dir_regex: Optional[re.Pattern] = None) -> Generator[Path, None, None]:
+def yield_git_repositories(
+    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
+) -> Generator[Path, None, None]:
     """
     Performs a breadth-first search for git repositories within and including root.
     """

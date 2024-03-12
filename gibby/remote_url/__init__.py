@@ -7,7 +7,12 @@ from pathlib import Path
 from .file_remote_url import FileRemoteUrl
 from .remote_url import RemoteUrl
 
-KNOWN_SCHEMES: dict[str, type[RemoteUrl]] = {"file": FileRemoteUrl}
+__all__ = [
+    "parse",
+    "RemoteUrl",
+    "FileRemoteUrl",
+]
+_KNOWN_SCHEMES: dict[str, type[RemoteUrl]] = {"file": FileRemoteUrl}
 
 
 def parse(url_string: str) -> RemoteUrl:
@@ -21,7 +26,7 @@ def parse(url_string: str) -> RemoteUrl:
         url_string = "file:///" + urllib.parse.quote(canon_local_path)
         scheme = "file"
 
-    if scheme in KNOWN_SCHEMES:
-        return KNOWN_SCHEMES[scheme](url_string)
+    if scheme in _KNOWN_SCHEMES:
+        return _KNOWN_SCHEMES[scheme](url_string)
     else:
         raise ValueError(f"Unsupported scheme '{scheme}'.")

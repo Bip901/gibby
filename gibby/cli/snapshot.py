@@ -7,18 +7,36 @@ from typing import Annotated, Optional
 import typer
 
 from .. import logic
+from ..snapshot_behavior import DEFAULT_SNAPSHOT_BEHAVIOR, SnapshotBehavior
 from . import _utils as utils
 
 app = typer.Typer(
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
-    help=f"""Commands regarding snapshots.
-Gibby saves files with the git attribute '{logic.SNAPSHOT_ATTRIBUTE}' set to '{logic.SNAPSHOT_ATTRIBUTE_FORCE}' exactly as they are in the working directory, even if they're git-ignored.
-See "git help attributes" for help on marking files with attributes.
-""",
+    help='Commands regarding snapshots. Try "gibby snapshot help".',
 )
 
 logger = logging.getLogger()
+
+
+@app.command()
+def help() -> None:
+    """
+    Displays help about snapshots.
+    """
+
+    print("During `gibby backup`, gibby saves a snapshot of your uncommitted changes.")
+    print(
+        f"You can control the behavior of specific files by marking them with the `{logic.SNAPSHOT_ATTRIBUTE}` git attribute."
+    )
+    print(
+        f"Setting git attributes is done in the `.gitattributes` file or in `.git/info/attributes` like so:\n  foo.txt {logic.SNAPSHOT_ATTRIBUTE}={SnapshotBehavior.only_if_staged}\nRun `git help attributes` for further explanation about git attributes."
+    )
+    print()
+    print(f"The {logic.SNAPSHOT_ATTRIBUTE} attribute may have the following values:")
+    for val in SnapshotBehavior:
+        print(f"  * {val}{' (default)' if val == DEFAULT_SNAPSHOT_BEHAVIOR else ''}")
+    print(f"Any other value is treated as '{DEFAULT_SNAPSHOT_BEHAVIOR}'.")
 
 
 @app.command("list")
@@ -28,11 +46,11 @@ def cli_list(
         typer.Argument(help="The directory to list the snapshot for. Defaults to the current working directory."),
     ] = None,
     ignore_dir: Annotated[
-        Optional[re.Pattern], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
+        Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, parser=utils.regex)
     ] = None,
 ) -> None:
-    f"""
-    Lists all files that have the {logic.SNAPSHOT_ATTRIBUTE} set, and their corresponding attribute value.
+    """
+    Lists all files that have the gibby-snapshot attribute, and their corresponding attribute value.
     """
 
     utils.ensure_git_installed()
