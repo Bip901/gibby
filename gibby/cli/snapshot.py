@@ -37,6 +37,10 @@ def help() -> None:
     for val in SnapshotBehavior:
         print(f"  * {val}{' (default)' if val == DEFAULT_SNAPSHOT_BEHAVIOR else ''}")
     print(f"Any other value is treated as '{DEFAULT_SNAPSHOT_BEHAVIOR}'.")
+    print()
+    print(
+        "You may use the `gibby snapshot list` command to view all files with the attribute set in a given repository."
+    )
 
 
 @app.command("list")
@@ -63,7 +67,7 @@ def cli_list(
     count = 0
     for repository in repositories:
         try:
-            for file, attribute_value in logic.yield_files_with_snapshot_attribute(repository, ignore_dir):
+            for file, attribute_value in logic.yield_paths_with_snapshot_attribute(repository, ignore_dir):
                 print(f"{file} - {attribute_value}")
                 count += 1
         except subprocess.CalledProcessError as ex:
