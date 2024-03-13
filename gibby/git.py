@@ -88,23 +88,42 @@ class Git:
         except subprocess.CalledProcessError:
             return False
 
+    def get_local_branches(self) -> list[str]:
+        stdout = self("branch", "--list", "--format", "%(refname)")
+        return stdout.decode().strip("\n").splitlines()
+
     def create_bare_repository(self) -> None:
         """
         Creates a new bare repository at the current working directory.
         """
         self("init", "--bare")
 
+    def get_remote_branches(self, remote_url: str) -> list[str]:
+        """
+        Connects to the given remote URL and returns its branches.
+        """
+        stdout = self("ls-remote", "--heads", "--", remote_url)
+        return [line.split()[1] for line in stdout.decode().strip("\n").splitlines()]
+
     def does_remote_exist(self, remote_url: str) -> bool:
         """
         Connects to the given remote URL and tests if it responds properly.
         """
         try:
-            self("ls-remote", "--heads", remote_url, stderr=subprocess.DEVNULL)
+            self("ls-remote", "--heads", "--", remote_url, stderr=subprocess.DEVNULL)
             return True
         except subprocess.CalledProcessError:
             return False
 
     def __call__(self, *args: str, stdin: Optional[bytes] = None, stderr: Optional[int] = None) -> bytes:
+        """
+        Invokes git with the given arguments:
+
+        :param args: The command-line arguments to pass to git.
+        :param stdin: Optionally, the bytes to pass to the standard input of git.
+        :param stderr: A "_FILE" such as subprocess.DEVNULL to redirect git's stderr to. If set to None, outputs to the stderr of the current process.
+        """
+
         process = subprocess.run(
             [get_git_executable(), *args],
             input=stdin,

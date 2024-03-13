@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .git import Git, git_directory_name
-from .remote_url import RemoteUrl
 from .snapshot_behavior import SnapshotBehavior
 
 logger = logging.getLogger()
@@ -125,7 +124,7 @@ def do_snapshot(repository: Path) -> Generator[None, None, None]:
     git("add", ".")
     files_to_force_snapshot = filter(lambda pair: pair[1] == SnapshotBehavior.force, files_with_snapshot_attribute)
     for batch in yield_batches((pair[0] for pair in files_to_force_snapshot), MAX_GIT_ADD_ARGUMENTS):
-        git("add", "--force", *(str(path) for path in batch))
+        git("add", "--force", "--", *(str(path) for path in batch))
     git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged@{serialized_branch_name}")
     if is_detached_head:
         # return to detached head state
@@ -143,6 +142,8 @@ def do_snapshot(repository: Path) -> Generator[None, None, None]:
 
 
 def do_backup(repository: Path, remote: str, snapshot: bool, test_connectivity: bool) -> None:
+    if remote.startswith("-"):
+        raise ValueError("Remote must not begin with '-'. For local paths that start with '-', use './-' instead.")
     logger.info(f"Backing up '{repository}' to '{remote}'")
 
     if test_connectivity:
@@ -155,7 +156,14 @@ def do_backup(repository: Path, remote: str, snapshot: bool, test_connectivity: 
     snapshot_cleaner: AbstractContextManager[Any] = do_snapshot(repository) if snapshot else nullcontext()
     try:
         with snapshot_cleaner:
-            Git(repository)("push", "--all", "--force", remote)
+            git = Git(repository)
+            git("push", "--all", "--force", "--", remote)
+            local_branches = set(git.get_local_branches())
+            remote_branches = git.get_remote_branches(remote)
+            for remote_branch in remote_branches:
+                if remote_branch not in local_branches:
+                    logger.info(f"Deleting branch {remote_branch} from backup because it no longer exists")
+                    git("push", remote, "--delete", remote_branch)
     except SnapshotError as ex:
         logger.error(ex.message + f" Skipping '{repository}'.")
 

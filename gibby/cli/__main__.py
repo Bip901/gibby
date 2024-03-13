@@ -15,7 +15,9 @@ app.add_typer(snapshot.app, name="snapshot")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(sys.stderr))
+stream_handler = logging.StreamHandler(sys.stderr)
+stream_handler.setFormatter(logging.Formatter("{asctime} {levelname[0]}\t{message}", style="{", datefmt="%H:%M:%S"))
+logger.addHandler(stream_handler)
 
 
 @app.command()
@@ -67,7 +69,7 @@ def backup_single(
     backup_url: Annotated[
         str,
         typer.Argument(
-            help="The URL to back up to, in a format `git push` would understand (see: `git help push`, section GIT URLS).",
+            help="The URL or path to back up to, in a format `git push` would understand (see: `git help push`, section GIT URLS).",
         ),
     ],
 ) -> None:
