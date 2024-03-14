@@ -1,5 +1,6 @@
 import logging
 import platform
+from typing import Optional
 import urllib.parse
 from pathlib import Path
 
@@ -45,7 +46,7 @@ class FileRemoteUrl(RemoteUrl):
         for directory in reversed(missing_directories):
             directory.mkdir(mode=permissions)
 
-    def init_git_bare_if_needed(self) -> None:
+    def init_git_bare_if_needed(self, initial_branch: Optional[str] = None) -> None:
         if next(self._local_path.iterdir(), None) is None:
             logger.info(f"Initializing new git repo at {self._local_path}")
-            Git(self._local_path).create_bare_repository()
+            Git(self._local_path).create_bare_repository(initial_branch)

@@ -1,14 +1,11 @@
 import logging
 import re
-from collections.abc import Generator
-from pathlib import Path
 from typing import Optional
 
 import click
 
 from .. import remote_url
-from ..git import get_git_executable, git_directory_name
-from ..logic import is_path_ignored
+from ..git import get_git_executable
 
 logger = logging.getLogger()
 
@@ -62,23 +59,3 @@ def ensure_git_installed() -> None:
     except ValueError as ex:
         logger.error(ex)
         exit(1)
-
-
-def yield_git_repositories(
-    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
-) -> Generator[Path, None, None]:
-    """
-    Performs a breadth-first search for git repositories within and including root.
-    """
-
-    queue = [root]
-    while queue:
-        directory = queue.pop()
-        if ignore_dir_regex is not None:
-            if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
-                logger.info(f"Skipping directory {directory}")
-                continue
-        if (directory / git_directory_name).exists():
-            yield directory
-            continue
-        queue.extend(x for x in directory.iterdir() if x.is_dir())

@@ -44,20 +44,11 @@ def backup(
     """
 
     utils.ensure_git_installed()
-    repositories = list(utils.yield_git_repositories(source_directory, ignore_dir))
-    if not repositories:
-        logger.error(f"No git repositories were found under '{source_directory}'.")
+    try:
+        logic.backup(source_directory, backup_root, ignore_dir)
+    except logic.AbortOperationError as ex:
+        logger.error(ex.message)
         exit(1)
-    for repository in repositories:
-        if repository == source_directory:
-            remote_subdirectory = Path(repository.name)
-        else:
-            remote_subdirectory = repository.relative_to(source_directory)
-        remote_path = backup_root.joinpath(remote_subdirectory)
-        original_permissions = repository.stat().st_mode & 0o777
-        remote_path.mkdirs(original_permissions)
-        remote_path.init_git_bare_if_needed()
-        logic.do_backup(repository, remote_path.raw_url, snapshot=True, test_connectivity=False)
 
 
 @app.command()
@@ -79,7 +70,43 @@ def backup_single(
     """
 
     utils.ensure_git_installed()
-    logic.do_backup(source_directory, backup_url, snapshot=True, test_connectivity=True)
+    try:
+        logic.backup_single(source_directory, backup_url, test_connectivity=True)
+    except logic.AbortOperationError or ValueError as ex:
+        logger.error(ex)
+        exit(1)
+
+
+@app.command()
+def restore_single(
+    backup_url: Annotated[
+        str,
+        typer.Argument(
+            help="The URL or path to restore from, in a format `git push` would understand (see: `git help push`, section GIT URLS).",
+        ),
+    ],
+    restore_to: Annotated[
+        Path,
+        typer.Argument(help="The directory to restore into. Will be created if it does not exist."),
+    ],
+    drop_snapshot: Annotated[
+        bool,
+        typer.Argument(
+            help="Whether to ignore the snapshot data in the backup (true) or include it in the restoration (false)."
+        ),
+    ] = False,
+) -> None:
+    """
+    Restores a single repository.
+    As opposed 'restore', 'restore-single' supports any URL format your git supports, because it performs no extra logic on the remote.
+    """
+
+    utils.ensure_git_installed()
+    try:
+        logic.restore_single(backup_url, restore_to, drop_snapshot)
+    except ValueError as ex:
+        logger.error(ex)
+        exit(1)
 
 
 @app.command()
@@ -97,10 +124,17 @@ def restore(
             help="The directory to restore to - defaults to the current working directory. A subdirectory with the repo's name will be created."
         ),
     ] = None,
+    drop_snapshot: Annotated[
+        bool,
+        typer.Argument(
+            help="Whether to ignore the snapshot data in the backup (true) or include it in the restoration (false)."
+        ),
+    ] = False,
 ) -> None:
     utils.ensure_git_installed()
     if not restore_to:
         restore_to = Path(".")
+    # TODO
 
 
 if __name__ == "__main__":

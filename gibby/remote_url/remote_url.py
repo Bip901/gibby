@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from typing import Optional
 import urllib.parse
 from pathlib import Path
 
@@ -29,7 +30,9 @@ class RemoteUrl:
         """
 
     @abc.abstractmethod
-    def init_git_bare_if_needed(self) -> None:
+    def init_git_bare_if_needed(self, initial_branch: Optional[str] = None) -> None:
         """
         If this directory is empty, runs git init --bare.
+
+        :param initial_branch: The name of the initial branch to check out, or None to use the default value.
         """

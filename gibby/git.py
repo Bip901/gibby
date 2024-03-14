@@ -89,18 +89,24 @@ class Git:
             return False
 
     def get_local_branches(self) -> list[str]:
+        """
+        Lists the full branch names of all local branches (e.g. refs/heads/main).
+        """
         stdout = self("branch", "--list", "--format", "%(refname)")
         return stdout.decode().strip("\n").splitlines()
 
-    def create_bare_repository(self) -> None:
+    def create_bare_repository(self, initial_branch: Optional[str] = None) -> None:
         """
         Creates a new bare repository at the current working directory.
         """
-        self("init", "--bare")
+        if initial_branch:
+            self("init", "--bare", "--initial-branch", initial_branch)
+        else:
+            self("init", "--bare")
 
     def get_remote_branches(self, remote_url: str) -> list[str]:
         """
-        Connects to the given remote URL and returns its branches.
+        Connects to the given remote URL and returns its full branch names (e.g. refs/heads/main).
         """
         stdout = self("ls-remote", "--heads", "--", remote_url)
         return [line.split()[1] for line in stdout.decode().strip("\n").splitlines()]
@@ -114,7 +120,17 @@ class Git:
             return True
         except subprocess.CalledProcessError:
             return False
+        
+    def get_commit_message(self, commit: str) -> str:
+        """
+        Returns the full commit message of the given commit.
 
+        :param commit: The commit hash or branch name.
+        """
+
+        stdout = self("show", "-s", "--format=%B", commit)
+        return stdout.decode()
+        
     def __call__(self, *args: str, stdin: Optional[bytes] = None, stderr: Optional[int] = None) -> bytes:
         """
         Invokes git with the given arguments:
