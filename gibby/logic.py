@@ -157,7 +157,8 @@ def _apply_snapshot(git: Git, original_repo_state: RepoState) -> None:
     if original_repo_state.is_detached_head:
         # return to detached head state
         assert original_repo_state.current_commit_hash is not None  # Relax type checker
-        git.checkout(original_repo_state.current_commit_hash)
+        git("checkout", "--detach")
+        git("reset", "--soft", original_repo_state.current_commit_hash)
     else:
         # checkout original branch without changing the working tree
         git("symbolic-ref", "HEAD", f"refs/heads/{original_repo_state.current_branch}")

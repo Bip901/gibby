@@ -72,14 +72,6 @@ class Git:
 
         return self("rev-parse", "HEAD").decode().rstrip("\n")
 
-    def checkout(self, branch: str) -> None:
-        """
-        Performs git checkout to the given branch.
-
-        :param branch: The name of the branch to check out.
-        """
-        self("checkout", branch)
-
     def is_ongoing_cherry_pick(self) -> bool:
         try:
             self("rev-parse", "--verify", "CHERRY_PICK_HEAD", stderr=subprocess.DEVNULL)

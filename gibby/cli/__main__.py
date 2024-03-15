@@ -88,7 +88,9 @@ def restore_single(
     ],
     restore_to: Annotated[
         Path,
-        typer.Argument(help="The directory to restore into. The directory will be created if necessary, and it must be empty."),
+        typer.Argument(
+            help="The directory to restore into. The directory will be created if necessary, and it must be empty."
+        ),
     ],
     drop_snapshot: Annotated[
         bool,
@@ -121,7 +123,9 @@ def restore(
     ],
     restore_to: Annotated[
         Path,
-        typer.Argument(help="The local directory to restore to. The directory will be created if necessary, and it must be empty."),
+        typer.Argument(
+            help="The local directory to restore to. The directory will be created if necessary, and it must be empty."
+        ),
     ],
     drop_snapshot: Annotated[
         bool,
