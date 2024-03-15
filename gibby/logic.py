@@ -235,7 +235,7 @@ def backup_single(repository: Path, remote: str, test_connectivity: bool) -> Non
     if test_connectivity:
         logger.info(f"Checking connectivity with remote '{remote}'")
         if not Git(repository).does_remote_exist(remote):
-            raise AbortOperationError(f"Remote '{remote}' does not seem to exist!")
+            raise AbortOperationError(f"Remote '{remote}' does not seem to exist / be a git repository!")
         logger.info("Connectivity check passed")
 
     with _record_snapshot(repository):
