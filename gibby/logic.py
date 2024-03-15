@@ -325,10 +325,13 @@ def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> 
     :raises ValueError:
     """
 
-    if not to_directory.is_dir():
-        raise ValueError(f"'{to_directory}' is not a directory!")
-    if next(to_directory.iterdir(), None) is not None:
-        raise ValueError(f"Refusing to restore to non-empty directory '{to_directory}'")
+    if to_directory.exists():
+        if not to_directory.is_dir():
+            raise ValueError(f"'{to_directory}' is not a directory!")
+        if next(to_directory.iterdir(), None) is not None:
+            raise ValueError(f"Refusing to restore to non-empty directory '{to_directory}'")
+    else:
+        to_directory.mkdir()
 
     queue = [backup_root]
     while queue:
