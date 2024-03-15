@@ -1,3 +1,5 @@
+from __future__ import annotations
+from dataclasses import dataclass
 import itertools
 import logging
 import os
@@ -119,10 +121,56 @@ class AbortOperationError(Exception):
 
     def __str__(self) -> str:
         return self.message
+    
+
+@dataclass
+class RepoState:
+    # These fields are mutually exclusive, at least one will be None
+    current_branch: Optional[str]
+    current_commit_hash: Optional[str]
+    ###
+    is_orphan: bool
+
+    @property
+    def is_detached_head(self) -> bool:
+        return self.current_branch is None and self.current_commit_hash is not None
+    
+    def serialize(self) -> str:
+        if self.current_branch is None:
+            result = ":" + self.current_commit_hash
+        result = self.current_branch
+        result += f" orphan?{1 if self.is_orphan else 0}"
+        return result
+
+    @classmethod
+    def deserialize(cls, serialized: str) -> RepoState:
+        fields = serialized.split(" ")
+        is_orphan = fields[1].endswith("1")
+        if fields[0].startswith(":"):
+            return cls(branch_name=None, commit_hash=fields[0][1:], is_orphan=is_orphan)
+        else:
+            return cls(branch_name=fields[0], commit_hash=None, is_orphan=is_orphan)
+
+
+def _apply_snapshot(git: Git, original_repo_state: RepoState) -> None:
+    if original_repo_state.is_detached_head:
+        # return to detached head state
+        git.checkout(original_repo_state.current_commit_hash)
+    else:
+        # checkout original branch without changing the working tree
+        git("symbolic-ref", "HEAD", f"refs/heads/{original_repo_state.current_branch}")
+    # -> At this point, all changes from the snapshot (including ones that were unstaged) are staged.
+    git("reset", f"{GIBBY_SNAPSHOT_BRANCH}^")
+    # -> At this point, all unstaged changes from the snapshot are unstaged, but staged changes from the snapshot are not present in the index at all
+    if original_repo_state.is_orphan:
+        # re-orphan branch
+        git("update-ref", "-d", "HEAD")
+    else:
+        git("reset", "--soft", f"{GIBBY_SNAPSHOT_BRANCH}^^")
 
 
 @contextmanager
-def _do_snapshot(repository: Path) -> Generator[None, None, None]:
+def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     git = Git(repository)
     checks_to_error_messages = {
         git.is_ongoing_cherry_pick: "cherry pick",
@@ -133,35 +181,30 @@ def _do_snapshot(repository: Path) -> Generator[None, None, None]:
     for check in checks_to_error_messages:
         if check():
             raise AbortOperationError(f"Can't snapshot during an in-progress {checks_to_error_messages[check]}.")
-    current_branch_or_commit = git.get_current_branch()
-    if is_detached_head := current_branch_or_commit is None:
-        current_branch_or_commit = git.get_current_commit_hash()
-        serialized_branch_name = ":" + current_branch_or_commit
+    current_branch = git.get_current_branch()
+    is_orphan = git.is_orphan(current_branch)
+    if current_branch is None:
+        original_repo_state = RepoState(current_branch=None, current_commit_hash=git.get_current_commit_hash(), is_orphan=is_orphan)
     else:
-        serialized_branch_name = current_branch_or_commit
-        if current_branch_or_commit == GIBBY_SNAPSHOT_BRANCH:
+        original_repo_state = RepoState(current_branch=current_branch, current_commit_hash=None, is_orphan=is_orphan)
+        if current_branch == GIBBY_SNAPSHOT_BRANCH:
             raise AbortOperationError(
                 f"Refusing to snapshot a repository with branch '{GIBBY_SNAPSHOT_BRANCH}' checked-out."
             )
 
     files_with_snapshot_attribute = list(yield_paths_with_snapshot_attribute(repository))
-    git("branch", "-f", "--no-track", GIBBY_SNAPSHOT_BRANCH)
+    if not is_orphan:
+        git("branch", "-f", "--no-track", GIBBY_SNAPSHOT_BRANCH)
     git("symbolic-ref", "HEAD", f"refs/heads/{GIBBY_SNAPSHOT_BRANCH}")
-    git("commit", "--no-verify", "--allow-empty", "-m", f"staged@{serialized_branch_name}")
+    git("commit", "--no-verify", "--allow-empty", "-m", f"staged snapshot")
     git("add", ".")
     files_to_force_snapshot = filter(lambda pair: pair[1] == SnapshotBehavior.force, files_with_snapshot_attribute)
     for batch in yield_batches((pair[0] for pair in files_to_force_snapshot), MAX_GIT_ADD_ARGUMENTS):
         git("add", "--force", "--", *(str(path) for path in batch))
-    git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged@{serialized_branch_name}")
-    if is_detached_head:
-        # return to detached head state
-        git.checkout(current_branch_or_commit)
-    else:
-        # checkout original branch without changing the working tree
-        git("symbolic-ref", "HEAD", f"refs/heads/{current_branch_or_commit}")
-    # All changes are now staged, including those that were unstaged before.
-    git("reset", f"{GIBBY_SNAPSHOT_BRANCH}^")
-    git("reset", "--soft", f"{GIBBY_SNAPSHOT_BRANCH}^^")
+    git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged snapshot\n{original_repo_state.serialize()}")
+    # We've modified the original repo while creating the snapshot...
+    # Good thing we've just made a snapshot to restore from :)
+    _apply_snapshot(git, original_repo_state)
     try:
         yield None
     finally:
@@ -190,7 +233,7 @@ def backup_single(repository: Path, remote: str, test_connectivity: bool) -> Non
             raise AbortOperationError(f"Remote '{remote}' does not seem to exist!")
         logger.info("Connectivity check passed")
 
-    with _do_snapshot(repository):
+    with _record_snapshot(repository):
         git = Git(repository)
         git("push", "--all", "--force", "--", remote)
         local_branches = set(git.get_local_branches())
@@ -234,12 +277,9 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
         )
     elif not drop_snapshot:
         logger.info("Restoring index state from snapshot")
-        original_branch = (
-            git.get_commit_message(GIBBY_SNAPSHOT_BRANCH).strip("\n").split("@")[1]
-        )  # e.g. unstaged@main -> main
-        git("symbolic-ref", "HEAD", f"refs/heads/{original_branch}")
-        git("reset", f"{GIBBY_SNAPSHOT_BRANCH}^")
-        git("reset", "--soft", f"{GIBBY_SNAPSHOT_BRANCH}^^")
+        second_commit_message_line = git.get_commit_message(GIBBY_SNAPSHOT_BRANCH).rstrip("\n").splitlines()[1]
+        original_repo_state = RepoState.deserialize(second_commit_message_line)
+        _apply_snapshot(git, original_repo_state)
     logger.info(f"Obliterating branch {GIBBY_SNAPSHOT_BRANCH}")
     try:
         git("branch", "--delete", "--force", GIBBY_SNAPSHOT_BRANCH)

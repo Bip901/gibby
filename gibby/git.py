@@ -37,13 +37,28 @@ class Git:
 
     def get_current_branch(self) -> Optional[str]:
         """
-        Returns the name of the current branch, or None if in detached head mode.
+        Returns the short name of the current branch, or None if in detached head mode.
         """
 
         result = self("branch", "--show-current").decode().rstrip("\n")
         if result:
             return result
         return None
+    
+    def is_orphan(self, branch_name: str) -> bool:
+        """
+        Returns whether the given branch is an orphan (has no commits).
+
+        :param branch_name: The branch name, either short-form or long-form (refs/heads/...)
+        """
+
+        if not branch_name.startswith("refs/heads/"):
+            branch_name = "refs/heads/" + branch_name  # Disambiguate from commit hash
+        try:
+            self("rev-parse", branch_name, stderr=subprocess.DEVNULL)
+            return False
+        except subprocess.CalledProcessError:
+            return True
 
     def get_current_commit_hash(self) -> str:
         """
@@ -121,14 +136,14 @@ class Git:
         except subprocess.CalledProcessError:
             return False
 
-    def get_commit_message(self, commit: str) -> str:
+    def get_commit_message(self, commit_or_branch: str) -> str:
         """
         Returns the full commit message of the given commit.
 
         :param commit: The commit hash or branch name.
         """
 
-        stdout = self("show", "-s", "--format=%B", commit)
+        stdout = self("show", "-s", "--format=%B", commit_or_branch)
         return stdout.decode()
 
     def __call__(self, *args: str, stdin: Optional[bytes] = None, stderr: Optional[int] = None) -> bytes:
