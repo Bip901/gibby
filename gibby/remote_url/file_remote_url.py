@@ -1,6 +1,6 @@
 import logging
 import platform
-import urllib.parse
+from collections.abc import Generator
 from pathlib import Path
 from typing import Optional
 
@@ -14,15 +14,14 @@ logger = logging.getLogger()
 class FileRemoteUrl(RemoteUrl):
     def __init__(self, raw_url: str) -> None:
         super().__init__(raw_url)
-        if self._parse_result.netloc:
+        if self._raw_parse_result.netloc:
             raise ValueError(
                 "File URLs with a remote location are not supported. Did you mean file:/// with 3 slashes?"
             )
-        self._local_path = Path(self._url_path_to_local_path(self._parse_result.path))
+        self._local_path = Path(self._url_path_to_local_path(self._unquoted_path))
 
     @classmethod
-    def _url_path_to_local_path(cls, quoted_path: str) -> str:
-        local_path = urllib.parse.unquote(quoted_path)
+    def _url_path_to_local_path(cls, local_path: str) -> str:
         if (
             platform.system().casefold() == "windows"
             and len(local_path) >= 3
@@ -51,3 +50,10 @@ class FileRemoteUrl(RemoteUrl):
         if next(self._local_path.iterdir(), None) is None:
             logger.info(f"Initializing new git repo at {self._local_path}")
             Git(self._local_path).create_bare_repository(initial_branch)
+
+    def list_children(self) -> Generator[str, None, None]:
+        for child in self._local_path.iterdir():
+            yield child.name
+
+    def is_dir(self) -> bool:
+        return self._local_path.is_dir()

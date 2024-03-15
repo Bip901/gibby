@@ -41,7 +41,7 @@ def backup(
     ] = None,
 ) -> None:
     """
-    Recursively backs up the given file tree to the given remote.
+    Recursively searches for git directories and backs them up to the given remote, which will become a partial mirror of the source directory.
     """
 
     utils.ensure_git_installed()
@@ -112,7 +112,7 @@ def restore_single(
 
 @app.command()
 def restore(
-    backup_path: Annotated[
+    backup_root: Annotated[
         remote_url.RemoteUrl,
         typer.Argument(
             help="The local file path or URL to restore from. For example: C:/Backups/Foo.",
@@ -120,11 +120,9 @@ def restore(
         ),
     ],
     restore_to: Annotated[
-        Optional[Path],
-        typer.Argument(
-            help="The directory to restore to - defaults to the current working directory. A subdirectory with the repo's name will be created."
-        ),
-    ] = None,
+        Path,
+        typer.Argument(help="The local directory to restore to. The directory must be empty."),
+    ],
     drop_snapshot: Annotated[
         bool,
         typer.Argument(
@@ -132,10 +130,15 @@ def restore(
         ),
     ] = False,
 ) -> None:
+    """
+    Recursively restores a backed-up file tree created with `backup`.
+    """
     utils.ensure_git_installed()
-    if not restore_to:
-        restore_to = Path(".")
-    # TODO
+    try:
+        logic.restore(backup_root, restore_to, drop_snapshot)
+    except ValueError as ex:
+        logger.error(ex)
+        exit(1)
 
 
 if __name__ == "__main__":

@@ -92,6 +92,26 @@ def yield_paths_with_snapshot_attribute(
             yield (repository / path.decode(), value_enum)
 
 
+def yield_git_repositories(
+    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
+) -> Generator[Path, None, None]:
+    """
+    Performs a breadth-first search for git repositories within and including root.
+    """
+
+    queue = [root]
+    while queue:
+        directory = queue.pop()
+        if ignore_dir_regex is not None:
+            if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
+                logger.info(f"Skipping directory {directory}")
+                continue
+        if (directory / git_directory_name).is_dir():
+            yield directory
+            continue
+        queue.extend(x for x in directory.iterdir() if x.is_dir())
+
+
 class AbortOperationError(Exception):
     def __init__(self, message: str) -> None:
         super().__init__()
@@ -210,9 +230,9 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
         git("branch", branch, "--track", f"remotes/{origin_name}/{branch}")
     if current_branch != GIBBY_SNAPSHOT_BRANCH:
         logger.warning(
-            f"Expected current branch to be {GIBBY_SNAPSHOT_BRANCH}, but was {current_branch}. Concluding restore with a simple clone."
+            f"Expected current branch to be {GIBBY_SNAPSHOT_BRANCH}, but was {current_branch}. Skipping snapshot restoration."
         )
-    else:
+    elif not drop_snapshot:
         logger.info("Restoring index state from snapshot")
         original_branch = (
             git.get_commit_message(GIBBY_SNAPSHOT_BRANCH).strip("\n").split("@")[1]
@@ -228,35 +248,15 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     else:
         git("reflog", "expire", "--expire-unreachable=now")
         git("gc", "--prune=now")
-    pass
     logger.info(f"Removing remote {origin_name}")
     git("remote", "remove", origin_name)
     logger.info(f"Restore '{remote}' complete.")
 
 
-def yield_git_repositories(
-    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
-) -> Generator[Path, None, None]:
-    """
-    Performs a breadth-first search for git repositories within and including root.
-    """
-
-    queue = [root]
-    while queue:
-        directory = queue.pop()
-        if ignore_dir_regex is not None:
-            if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
-                logger.info(f"Skipping directory {directory}")
-                continue
-        if (directory / git_directory_name).exists():
-            yield directory
-            continue
-        queue.extend(x for x in directory.iterdir() if x.is_dir())
-
-
 def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: Optional[re.Pattern[str]] = None) -> None:
     """
     Recursively backs up the given file tree to the given remote.
+    By the end of this function, the directory tree in backup_root will be a partial mirror copy of source_directory (that is, only containing the .git directories found and not excluded)
 
     :raises AbortOperationError: When thrown, some repository within the source directory could not (and was not) backed up. It was left in the same state as nothing was performed.
     """
@@ -265,12 +265,32 @@ def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: Optional[
     if not repositories:
         raise AbortOperationError(f"No git repositories were found under '{source_directory}'.")
     for repository in repositories:
-        if repository == source_directory:
-            remote_subdirectory = Path(repository.name)
-        else:
-            remote_subdirectory = repository.relative_to(source_directory)
+        remote_subdirectory = repository.relative_to(source_directory)
         remote_path = backup_root.joinpath(remote_subdirectory)
         original_permissions = repository.stat().st_mode & 0o777
         remote_path.mkdirs(original_permissions)
         remote_path.init_git_bare_if_needed(GIBBY_SNAPSHOT_BRANCH)
         backup_single(repository, remote_path.raw_url, test_connectivity=False)
+
+
+def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> None:
+    """
+    Recursively restores a backed-up file tree.
+
+    :raises ValueError:
+    """
+
+    if not to_directory.is_dir():
+        raise ValueError(f"'{to_directory}' is not a directory!")
+    if next(to_directory.iterdir(), None) is None:
+        raise ValueError(f"Refusing to restore to non-empty directory '{to_directory}'")
+
+    queue = [backup_root]
+    while queue:
+        remote_directory = queue.pop()
+        local_subdirectory = to_directory / remote_directory.relative_to(backup_root)
+        if remote_directory.joinpath(git_directory_name).is_dir():
+            restore_single(str(remote_directory), local_subdirectory, drop_snapshot)
+        else:
+            local_subdirectory.mkdir()
+            queue.extend(x for x in remote_directory.iterdir() if x.is_dir())
