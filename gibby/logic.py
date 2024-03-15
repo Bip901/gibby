@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+
 import itertools
 import logging
 import os
@@ -7,10 +7,11 @@ import re
 import subprocess
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from .git import Git, git_directory_name
+from .git import GIT_BARE_SENTRY_FILE, Git, git_directory_name
 from .remote_url import RemoteUrl
 from .snapshot_behavior import SnapshotBehavior
 
@@ -28,7 +29,7 @@ def is_path_ignored(path: Path, ignore_path_regex: re.Pattern[str]) -> bool:
 
 
 def yield_possibly_snapshotted_paths(
-    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
+    root: Path, ignore_dir_regex: re.Pattern[str] | None = None
 ) -> Generator[Path, None, None]:
     """
     Performs breadth-first search for all descendant paths which aren't git-internal files.
@@ -58,7 +59,7 @@ def yield_batches(iterator: Iterator[Any], batch_size: int) -> Generator[list[An
 
 
 def yield_paths_with_snapshot_attribute(
-    repository: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
+    repository: Path, ignore_dir_regex: re.Pattern[str] | None = None
 ) -> Generator[tuple[Path, SnapshotBehavior], None, None]:
     """
     Yields files and directories in the given repository that have a snapshot attribute.
@@ -94,9 +95,7 @@ def yield_paths_with_snapshot_attribute(
             yield (repository / path.decode(), value_enum)
 
 
-def yield_git_repositories(
-    root: Path, ignore_dir_regex: Optional[re.Pattern[str]] = None
-) -> Generator[Path, None, None]:
+def yield_git_repositories(root: Path, ignore_dir_regex: re.Pattern[str] | None = None) -> Generator[Path, None, None]:
     """
     Performs a breadth-first search for git repositories within and including root.
     """
@@ -121,24 +120,26 @@ class AbortOperationError(Exception):
 
     def __str__(self) -> str:
         return self.message
-    
+
 
 @dataclass
 class RepoState:
     # These fields are mutually exclusive, at least one will be None
-    current_branch: Optional[str]
-    current_commit_hash: Optional[str]
+    current_branch: str | None
+    current_commit_hash: str | None
     ###
     is_orphan: bool
 
     @property
     def is_detached_head(self) -> bool:
         return self.current_branch is None and self.current_commit_hash is not None
-    
+
     def serialize(self) -> str:
         if self.current_branch is None:
+            assert self.current_commit_hash is not None  # Relax type checker
             result = ":" + self.current_commit_hash
-        result = self.current_branch
+        else:
+            result = self.current_branch
         result += f" orphan?{1 if self.is_orphan else 0}"
         return result
 
@@ -147,14 +148,15 @@ class RepoState:
         fields = serialized.split(" ")
         is_orphan = fields[1].endswith("1")
         if fields[0].startswith(":"):
-            return cls(branch_name=None, commit_hash=fields[0][1:], is_orphan=is_orphan)
+            return cls(None, fields[0][1:], is_orphan)
         else:
-            return cls(branch_name=fields[0], commit_hash=None, is_orphan=is_orphan)
+            return cls(fields[0], None, is_orphan)
 
 
 def _apply_snapshot(git: Git, original_repo_state: RepoState) -> None:
     if original_repo_state.is_detached_head:
         # return to detached head state
+        assert original_repo_state.current_commit_hash is not None  # Relax type checker
         git.checkout(original_repo_state.current_commit_hash)
     else:
         # checkout original branch without changing the working tree
@@ -182,10 +184,13 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
         if check():
             raise AbortOperationError(f"Can't snapshot during an in-progress {checks_to_error_messages[check]}.")
     current_branch = git.get_current_branch()
-    is_orphan = git.is_orphan(current_branch)
-    if current_branch is None:
-        original_repo_state = RepoState(current_branch=None, current_commit_hash=git.get_current_commit_hash(), is_orphan=is_orphan)
+    if current_branch is None:  # detached head
+        is_orphan = False
+        original_repo_state = RepoState(
+            current_branch=None, current_commit_hash=git.get_current_commit_hash(), is_orphan=is_orphan
+        )
     else:
+        is_orphan = git.is_orphan(current_branch)
         original_repo_state = RepoState(current_branch=current_branch, current_commit_hash=None, is_orphan=is_orphan)
         if current_branch == GIBBY_SNAPSHOT_BRANCH:
             raise AbortOperationError(
@@ -196,7 +201,7 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     if not is_orphan:
         git("branch", "-f", "--no-track", GIBBY_SNAPSHOT_BRANCH)
     git("symbolic-ref", "HEAD", f"refs/heads/{GIBBY_SNAPSHOT_BRANCH}")
-    git("commit", "--no-verify", "--allow-empty", "-m", f"staged snapshot")
+    git("commit", "--no-verify", "--allow-empty", "-m", "staged snapshot")
     git("add", ".")
     files_to_force_snapshot = filter(lambda pair: pair[1] == SnapshotBehavior.force, files_with_snapshot_attribute)
     for batch in yield_batches((pair[0] for pair in files_to_force_snapshot), MAX_GIT_ADD_ARGUMENTS):
@@ -293,7 +298,7 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     logger.info(f"Restore '{remote}' complete.")
 
 
-def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: Optional[re.Pattern[str]] = None) -> None:
+def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: re.Pattern[str] | None) -> None:
     """
     Recursively backs up the given file tree to the given remote.
     By the end of this function, the directory tree in backup_root will be a partial mirror copy of source_directory (that is, only containing the .git directories found and not excluded)
@@ -329,7 +334,7 @@ def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> 
     while queue:
         remote_directory = queue.pop()
         local_subdirectory = to_directory / remote_directory.relative_to(backup_root)
-        if remote_directory.joinpath(git_directory_name).is_dir():
+        if remote_directory.joinpath(GIT_BARE_SENTRY_FILE).is_file():
             restore_single(str(remote_directory), local_subdirectory, drop_snapshot)
         else:
             local_subdirectory.mkdir(exist_ok=True)

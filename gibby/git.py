@@ -9,6 +9,11 @@ GIT_EXECUTABLE_ENVIRONMENT_VAR = "GIT_EXECUTABLE"
 GIT_EXECUTABLE_DEFAULT = "git"
 GIT_IGNORE_FILE_NAME = ".gitignore"
 
+GIT_BARE_SENTRY_FILE = "HEAD"
+"""
+When this file is present in a directory, it's a git bare repository.
+"""
+
 
 git_directory_name = os.environ.get(GIT_DIR_ENVIRONMENT_VAR, GIT_DIR_DEFAULT)
 _git_executable = os.environ.get(GIT_EXECUTABLE_ENVIRONMENT_VAR, GIT_EXECUTABLE_DEFAULT)
@@ -44,7 +49,7 @@ class Git:
         if result:
             return result
         return None
-    
+
     def is_orphan(self, branch_name: str) -> bool:
         """
         Returns whether the given branch is an orphan (has no commits).

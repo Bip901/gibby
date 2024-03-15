@@ -88,3 +88,9 @@ class RemoteUrl:
         """
         Returns whether this URL exists and points to a directory.
         """
+
+    @abc.abstractmethod
+    def is_file(self) -> bool:
+        """
+        Returns whether this URL exists and points to a regular file.
+        """

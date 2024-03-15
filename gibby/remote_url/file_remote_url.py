@@ -57,3 +57,6 @@ class FileRemoteUrl(RemoteUrl):
 
     def is_dir(self) -> bool:
         return self._local_path.is_dir()
+
+    def is_file(self) -> bool:
+        return self._local_path.is_file()
