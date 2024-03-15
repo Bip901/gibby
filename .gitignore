@@ -1,5 +1,6 @@
 __pycache__/
 venv/
+dist/
 *.egg-info/
 .vscode/
 gibby_icon.xcf
