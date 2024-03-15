@@ -30,7 +30,7 @@ class RemoteUrl:
         """
 
     @abc.abstractmethod
-    def init_git_bare_if_needed(self, initial_branch: Optional[str] = None) -> None:
+    def init_git_bare_if_needed(self, initial_branch: str | None = None) -> None:
         """
         If this directory is empty, runs git init --bare.
 

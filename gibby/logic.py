@@ -198,8 +198,8 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     if len(list(restore_to.iterdir())) > 0:
         raise ValueError(f"Refusing to restore into non-empty directory '{restore_to}'")
     git = Git(restore_to)
-    ORIGIN_NAME = "gibby-origin"
-    git("clone", "--no-hardlinks", "--origin", ORIGIN_NAME, remote, ".")
+    origin_name = "gibby-origin"
+    git("clone", "--no-hardlinks", "--origin", origin_name, remote, ".")
     current_branch = git.get_current_branch()
     logger.info("Creating local branches...")
     for branch in git.get_remote_branches(remote):
@@ -207,7 +207,7 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
             branch = branch[len("refs/heads/") :]
         if branch == current_branch:
             continue
-        git("branch", branch, "--track", f"remotes/{ORIGIN_NAME}/{branch}")
+        git("branch", branch, "--track", f"remotes/{origin_name}/{branch}")
     if current_branch != GIBBY_SNAPSHOT_BRANCH:
         logger.warning(
             f"Expected current branch to be {GIBBY_SNAPSHOT_BRANCH}, but was {current_branch}. Concluding restore with a simple clone."
@@ -229,8 +229,8 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
         git("reflog", "expire", "--expire-unreachable=now")
         git("gc", "--prune=now")
     pass
-    logger.info(f"Removing remote {ORIGIN_NAME}")
-    git("remote", "remove", ORIGIN_NAME)
+    logger.info(f"Removing remote {origin_name}")
+    git("remote", "remove", origin_name)
     logger.info(f"Restore '{remote}' complete.")
 
 
