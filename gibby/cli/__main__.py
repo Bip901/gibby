@@ -32,7 +32,7 @@ def backup(
     backup_root: Annotated[
         remote_url.RemoteUrl,
         typer.Argument(
-            help="The local file path or URL to back up to. For example: C:/Backups. Subdirectories will be created as necessary.",
+            help="The local file path or URL to back up to. For example: C:/Backups. This directory and subdirectories will be created if necessary.",
             click_type=utils.RemoteUrlParser(tip="Tip: Try using `backup-single`, which supports more URL schemes."),
         ),
     ],
@@ -88,7 +88,7 @@ def restore_single(
     ],
     restore_to: Annotated[
         Path,
-        typer.Argument(help="The directory to restore into. Will be created if it does not exist."),
+        typer.Argument(help="The directory to restore into. The directory will be created if necessary, and it must be empty."),
     ],
     drop_snapshot: Annotated[
         bool,
@@ -121,7 +121,7 @@ def restore(
     ],
     restore_to: Annotated[
         Path,
-        typer.Argument(help="The local directory to restore to. The directory must be empty."),
+        typer.Argument(help="The local directory to restore to. The directory will be created if necessary, and it must be empty."),
     ],
     drop_snapshot: Annotated[
         bool,
