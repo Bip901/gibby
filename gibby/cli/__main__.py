@@ -6,7 +6,8 @@ from typing import Annotated, Optional
 
 import typer
 
-from .. import logic, remote_url
+from gibby import logic, remote_url
+
 from . import _utils as utils
 from . import snapshot
 
@@ -72,7 +73,7 @@ def backup_single(
     utils.ensure_git_installed()
     try:
         logic.backup_single(source_directory, backup_url, test_connectivity=True)
-    except logic.AbortOperationError or ValueError as ex:
+    except (logic.AbortOperationError, ValueError) as ex:
         logger.error(ex)
         exit(1)
 

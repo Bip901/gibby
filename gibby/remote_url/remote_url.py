@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import abc
-from typing import Optional
 import urllib.parse
 from pathlib import Path
+from typing import Optional
 
 
 class RemoteUrl:

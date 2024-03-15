@@ -15,7 +15,7 @@ class SnapshotBehavior(Enum):
         try:
             return cls[string.casefold()]
         except KeyError:
-            return DEFAULT_SNAPSHOT_BEHAVIOR
+            return DEFAULT
 
 
-DEFAULT_SNAPSHOT_BEHAVIOR = SnapshotBehavior.only_if_staged
+DEFAULT = SnapshotBehavior.only_if_staged

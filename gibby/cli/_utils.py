@@ -4,8 +4,7 @@ from typing import Optional
 
 import click
 
-from .. import remote_url
-from ..git import get_git_executable
+from gibby import git, remote_url
 
 logger = logging.getLogger()
 
@@ -55,7 +54,7 @@ class RegexParser(click.ParamType):
 
 def ensure_git_installed() -> None:
     try:
-        get_git_executable()
+        git.get_git_executable()
     except ValueError as ex:
         logger.error(ex)
         exit(1)

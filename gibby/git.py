@@ -120,7 +120,7 @@ class Git:
             return True
         except subprocess.CalledProcessError:
             return False
-        
+
     def get_commit_message(self, commit: str) -> str:
         """
         Returns the full commit message of the given commit.
@@ -130,7 +130,7 @@ class Git:
 
         stdout = self("show", "-s", "--format=%B", commit)
         return stdout.decode()
-        
+
     def __call__(self, *args: str, stdin: Optional[bytes] = None, stderr: Optional[int] = None) -> bytes:
         """
         Invokes git with the given arguments:

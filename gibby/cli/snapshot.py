@@ -6,8 +6,8 @@ from typing import Annotated, Optional
 
 import typer
 
-from .. import logic
-from ..snapshot_behavior import DEFAULT_SNAPSHOT_BEHAVIOR, SnapshotBehavior
+from gibby import logic, snapshot_behavior
+
 from . import _utils as utils
 
 app = typer.Typer(
@@ -29,14 +29,14 @@ def help() -> None:
     print(
         f"You can control the behavior of specific files by marking them with the `{logic.SNAPSHOT_ATTRIBUTE}` git attribute."
     )
-    print(
-        f"Setting git attributes is done in the `.gitattributes` file or in `.git/info/attributes` like so:\n  foo.txt {logic.SNAPSHOT_ATTRIBUTE}={SnapshotBehavior.only_if_staged}\nRun `git help attributes` for further explanation about git attributes."
-    )
+    print("Setting git attributes is done in the `.gitattributes` file or in `.git/info/attributes` like so:")
+    print(f"  foo.txt {logic.SNAPSHOT_ATTRIBUTE}={snapshot_behavior.SnapshotBehavior.only_if_staged}")
+    print("Run `git help attributes` for further explanation about git attributes.")
     print()
     print(f"The {logic.SNAPSHOT_ATTRIBUTE} attribute may have the following values:")
-    for val in SnapshotBehavior:
-        print(f"  * {val}{' (default)' if val == DEFAULT_SNAPSHOT_BEHAVIOR else ''}")
-    print(f"Any other value is treated as '{DEFAULT_SNAPSHOT_BEHAVIOR}'.")
+    for val in snapshot_behavior.SnapshotBehavior:
+        print(f"  * {val}{' (default)' if val == snapshot_behavior.DEFAULT else ''}")
+    print(f"Any other value is treated as '{snapshot_behavior.DEFAULT}'.")
     print()
     print(
         "You may use the `gibby snapshot list` command to view all files with the attribute set in a given repository."
@@ -59,7 +59,7 @@ def cli_list(
 
     utils.ensure_git_installed()
     source_directory = source_directory or Path(".")
-    repositories = list(utils.yield_git_repositories(source_directory, ignore_dir))
+    repositories = list(logic.yield_git_repositories(source_directory, ignore_dir))
     if not repositories:
         logger.error(f"No git repositories were found under '{source_directory}'.")
         exit(1)

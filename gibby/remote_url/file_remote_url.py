@@ -1,10 +1,11 @@
 import logging
 import platform
-from typing import Optional
 import urllib.parse
 from pathlib import Path
+from typing import Optional
 
-from ..git import Git
+from gibby.git import Git
+
 from .remote_url import RemoteUrl
 
 logger = logging.getLogger()

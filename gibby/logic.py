@@ -2,15 +2,15 @@ import itertools
 import logging
 import os
 import re
+import subprocess
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-import subprocess
 from typing import Any, Optional
 
 from .git import Git, git_directory_name
-from .snapshot_behavior import SnapshotBehavior
 from .remote_url import RemoteUrl
+from .snapshot_behavior import SnapshotBehavior
 
 logger = logging.getLogger()
 
@@ -161,9 +161,7 @@ def backup_single(repository: Path, remote: str, test_connectivity: bool) -> Non
     """
 
     if remote.startswith("-"):
-        raise ValueError(
-            "Remote must not begin with '-'. For local paths that start with '-', use './-' instead."
-        )
+        raise ValueError("Remote must not begin with '-'. For local paths that start with '-', use './-' instead.")
     logger.info(f"Backing up '{repository}' to '{remote}'")
 
     if test_connectivity:
@@ -191,9 +189,7 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     """
 
     if remote.startswith("-"):
-        raise ValueError(
-            "Remote must not begin with '-'. For local paths that start with '-', use './-' instead."
-        )
+        raise ValueError("Remote must not begin with '-'. For local paths that start with '-', use './-' instead.")
     if not restore_to.exists():
         logger.info(f"Creating empty directory '{restore_to}'")
         restore_to.mkdir(exist_ok=True)
@@ -208,15 +204,19 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     logger.info("Creating local branches...")
     for branch in git.get_remote_branches(remote):
         if branch.startswith("refs/heads/"):
-            branch = branch[len("refs/heads/"):]
+            branch = branch[len("refs/heads/") :]
         if branch == current_branch:
             continue
         git("branch", branch, "--track", f"remotes/{ORIGIN_NAME}/{branch}")
     if current_branch != GIBBY_SNAPSHOT_BRANCH:
-        logger.warning(f"Expected current branch to be {GIBBY_SNAPSHOT_BRANCH}, but was {current_branch}. Concluding restore with a simple clone.")
+        logger.warning(
+            f"Expected current branch to be {GIBBY_SNAPSHOT_BRANCH}, but was {current_branch}. Concluding restore with a simple clone."
+        )
     else:
         logger.info("Restoring index state from snapshot")
-        original_branch = git.get_commit_message(GIBBY_SNAPSHOT_BRANCH).strip("\n").split("@")[1]  # e.g. unstaged@main -> main
+        original_branch = (
+            git.get_commit_message(GIBBY_SNAPSHOT_BRANCH).strip("\n").split("@")[1]
+        )  # e.g. unstaged@main -> main
         git("symbolic-ref", "HEAD", f"refs/heads/{original_branch}")
         git("reset", f"{GIBBY_SNAPSHOT_BRANCH}^")
         git("reset", "--soft", f"{GIBBY_SNAPSHOT_BRANCH}^^")
