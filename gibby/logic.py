@@ -332,5 +332,5 @@ def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> 
         if remote_directory.joinpath(git_directory_name).is_dir():
             restore_single(str(remote_directory), local_subdirectory, drop_snapshot)
         else:
-            local_subdirectory.mkdir()
+            local_subdirectory.mkdir(exist_ok=True)
             queue.extend(x for x in remote_directory.iterdir() if x.is_dir())

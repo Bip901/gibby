@@ -41,10 +41,7 @@ class RemoteUrl:
 
         # URLs use the Posix directory separator '/' instead of the Windows '\'
         new_path = str(PurePosixPath(self._unquoted_path).relative_to(PurePosixPath(other._unquoted_path)))
-
-        new_parse_result = list(self._raw_parse_result)
-        new_parse_result[2] = urllib.parse.quote(new_path)
-        return urllib.parse.urlunparse(*new_parse_result)
+        return new_path
 
     def __str__(self) -> str:
         return self.raw_url
