@@ -322,7 +322,7 @@ def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> 
 
     if not to_directory.is_dir():
         raise ValueError(f"'{to_directory}' is not a directory!")
-    if next(to_directory.iterdir(), None) is None:
+    if next(to_directory.iterdir(), None) is not None:
         raise ValueError(f"Refusing to restore to non-empty directory '{to_directory}'")
 
     queue = [backup_root]
