@@ -1,5 +1,6 @@
 import os
 import subprocess
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -31,6 +32,25 @@ def get_git_executable() -> str:
             f'Failed running git with "{_git_executable}". Check that git is installed on your PATH, or set the {GIT_DIR_ENVIRONMENT_VAR} environment variable manually.'
         ) from ex
     return _git_executable
+
+
+class GitOngoingOperation(Enum):
+    CHERRY_PICK = 1
+    MERGE = 2
+    REBASE = 3
+    REVERT = 4
+
+    def get_sentry_rev(self) -> str:
+        if self == GitOngoingOperation.CHERRY_PICK:
+            return "CHERRY_PICK_HEAD"
+        elif self == GitOngoingOperation.MERGE:
+            return "MERGE_HEAD"
+        elif self == GitOngoingOperation.REBASE:
+            return "REBASE_HEAD"
+        elif self == GitOngoingOperation.REVERT:
+            return "REVERT_HEAD"
+        else:
+            raise ValueError("Unknown operation")
 
 
 class Git:
@@ -72,30 +92,15 @@ class Git:
 
         return self("rev-parse", "HEAD").decode().rstrip("\n")
 
-    def is_ongoing_cherry_pick(self) -> bool:
+    def is_ongoing_operation(self, operation: GitOngoingOperation) -> bool:
+        if (
+            operation == GitOngoingOperation.REBASE
+        ):  # rebase requires special treatment because it may leave REBASE_HEAD after the rebase
+            return (self.cwd / git_directory_name / "rebase-merge").is_dir() or (
+                self.cwd / git_directory_name / "rebase-apply"
+            ).is_dir()
         try:
-            self("rev-parse", "--verify", "CHERRY_PICK_HEAD", stderr=subprocess.DEVNULL)
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def is_ongoing_merge(self) -> bool:
-        try:
-            self("rev-parse", "--verify", "MERGE_HEAD", stderr=subprocess.DEVNULL)
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def is_ongoing_rebase(self) -> bool:
-        try:
-            self("rev-parse", "--verify", "REBASE_HEAD", stderr=subprocess.DEVNULL)
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def is_ongoing_revert(self) -> bool:
-        try:
-            self("rev-parse", "--verify", "REVERT_HEAD", stderr=subprocess.DEVNULL)
+            self("rev-parse", "--verify", operation.get_sentry_rev(), stderr=subprocess.DEVNULL)
             return True
         except subprocess.CalledProcessError:
             return False
@@ -105,6 +110,13 @@ class Git:
         Lists the full branch names of all local branches (e.g. refs/heads/main).
         """
         stdout = self("branch", "--list", "--format", "%(refname)")
+        return stdout.decode().strip("\n").splitlines()
+
+    def get_local_tags(self) -> list[str]:
+        """
+        Lists the full tag names of all local tags (e.g. refs/tags/my-tag).
+        """
+        stdout = self("tag", "--list", "--format", "%(refname)")
         return stdout.decode().strip("\n").splitlines()
 
     def create_bare_repository(self, initial_branch: Optional[str] = None) -> None:
@@ -121,6 +133,13 @@ class Git:
         Connects to the given remote URL and returns its full branch names (e.g. refs/heads/main).
         """
         stdout = self("ls-remote", "--heads", "--", remote_url)
+        return [line.split()[1] for line in stdout.decode().strip("\n").splitlines()]
+
+    def get_remote_tags(self, remote_url: str) -> list[str]:
+        """
+        Connects to the given remote URL and returns its full tag names (e.g. refs/tags/my-tag).
+        """
+        stdout = self("ls-remote", "--tags", "--", remote_url)
         return [line.split()[1] for line in stdout.decode().strip("\n").splitlines()]
 
     def does_remote_exist(self, remote_url: str) -> bool:
