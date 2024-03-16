@@ -39,10 +39,10 @@ def yield_possibly_snapshotted_paths(
     while queue:
         current_directory = queue.pop()
         if current_directory.name == git_directory_name:
-            # Presumably these are the only two directories within .git the user might want to back up.
+            # Presumably these are the only directories within .git the user might want to back up.
             # git disallows adding files from the .git directory, even with --force, so these require special treatment.
             # TODO
-            # queue.extend([current_directory / "hooks", current_directory / "info"])
+            # queue.extend(d for d in (current_directory / "hooks", current_directory / "info") if d.is_dir())
             continue
         if ignore_dir_regex is not None and is_path_ignored(current_directory.relative_to(root), ignore_dir_regex):
             logger.info(f"Skipping directory {current_directory}")
@@ -198,8 +198,8 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     git("symbolic-ref", "HEAD", f"refs/heads/{GIBBY_SNAPSHOT_BRANCH}")
     git("commit", "--no-verify", "--allow-empty", "-m", "staged snapshot")
     git("add", ".")
-    files_to_force_snapshot = filter(lambda pair: pair[1] == SnapshotBehavior.force, files_with_snapshot_attribute)
-    for batch in yield_batches((pair[0] for pair in files_to_force_snapshot), MAX_GIT_ADD_ARGUMENTS):
+    files_to_force_snapshot = (pair[0] for pair in files_with_snapshot_attribute if pair[1] == SnapshotBehavior.force)
+    for batch in yield_batches(files_to_force_snapshot, MAX_GIT_ADD_ARGUMENTS):
         git("add", "--force", "--", *(str(path) for path in batch))
     git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged snapshot\n{original_repo_state.serialize()}")
     # We've modified the original repo while creating the snapshot...
