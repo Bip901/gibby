@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .git import GIT_BARE_SENTRY_FILE, Git, git_directory_name
+from .git import GIT_BARE_SENTRY_FILE, Git, GitOngoingOperation, git_directory_name
 from .remote_url import RemoteUrl
 from .snapshot_behavior import SnapshotBehavior
 
@@ -175,15 +175,9 @@ def _apply_snapshot(git: Git, original_repo_state: RepoState) -> None:
 @contextmanager
 def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     git = Git(repository)
-    checks_to_error_messages = {
-        git.is_ongoing_cherry_pick: "cherry pick",
-        git.is_ongoing_merge: "merge",
-        git.is_ongoing_rebase: "rebase",
-        git.is_ongoing_revert: "revert",
-    }
-    for check in checks_to_error_messages:
-        if check():
-            raise AbortOperationError(f"Can't snapshot during an in-progress {checks_to_error_messages[check]}.")
+    for operation in GitOngoingOperation:
+        if git.is_ongoing_operation(operation):
+            raise AbortOperationError(f"Can't snapshot during an in-progress {operation.name}.")
     current_branch = git.get_current_branch()
     if current_branch is None:  # detached head
         is_orphan = False
@@ -241,13 +235,20 @@ def backup_single(repository: Path, remote: str, test_connectivity: bool) -> Non
 
     with _record_snapshot(repository):
         git = Git(repository)
+        # Push all branches and delete old remote branches
         git("push", "--all", "--force", "--", remote)
         local_branches = set(git.get_local_branches())
-        remote_branches = git.get_remote_branches(remote)
-        for remote_branch in remote_branches:
-            if remote_branch not in local_branches:
-                logger.info(f"Deleting branch {remote_branch} from backup because it no longer exists")
-                git("push", remote, "--delete", remote_branch)
+        remote_branches = set(git.get_remote_branches(remote))
+        for extra_branch in remote_branches.difference(local_branches):
+            logger.info(f"Deleting branch {extra_branch} from backup because it no longer exists")
+            git("push", remote, "--delete", extra_branch)
+        # Push all tags and delete old remote tags
+        git("push", "--tags", "--force", "--", remote)
+        local_tags = set(git.get_local_tags())
+        remote_tags = set(git.get_remote_tags(remote))
+        for extra_tag in remote_tags.difference(local_tags):
+            logger.info(f"Deleting tag {extra_tag} from backup because it no longer exists")
+            git("push", remote, "--delete", extra_tag)
 
 
 def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
