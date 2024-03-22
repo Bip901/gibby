@@ -13,7 +13,7 @@ class SnapshotBehavior(Enum):
     @classmethod
     def from_str(cls, string: str) -> SnapshotBehavior:
         try:
-            return cls[string.casefold()]
+            return cls[string.casefold().replace("-", "_")]
         except KeyError:
             return DEFAULT
 
