@@ -2,7 +2,7 @@ import os
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 GIT_DIR_ENVIRONMENT_VAR = "GIT_DIR"
 GIT_DIR_DEFAULT = ".git"
@@ -161,6 +161,13 @@ class Git:
 
         stdout = self("show", "-s", "--format=%B", commit_or_branch)
         return stdout.decode()
+
+    @staticmethod
+    def quote_pathspec(path: Union[str, Path]) -> str:
+        result = str(path)
+        if result.startswith(":") or ("*" in result) or ("?" in result):
+            result = ":(literal)" + result
+        return result
 
     def __call__(self, *args: str, stdin: Optional[bytes] = None, stderr: Optional[int] = None) -> bytes:
         """

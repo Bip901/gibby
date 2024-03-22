@@ -200,7 +200,7 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     git("add", ".")
     files_to_force_snapshot = (pair[0] for pair in files_with_snapshot_attribute if pair[1] == SnapshotBehavior.force)
     for batch in yield_batches(files_to_force_snapshot, MAX_GIT_ADD_ARGUMENTS):
-        git("add", "--force", "--", *(str(path) for path in batch))
+        git("add", "--force", "--", *(git.quote_pathspec(path) for path in batch))
     git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged snapshot\n{original_repo_state.serialize()}")
     # We've modified the original repo while creating the snapshot...
     # Good thing we've just made a snapshot to restore from :)
