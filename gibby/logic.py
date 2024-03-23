@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .file_tree import FileTree
 from .git import GIT_BARE_SENTRY_FILE, Git, GitOngoingOperation, git_directory_name
 from .remote_url import RemoteUrl
 from .snapshot_behavior import SnapshotBehavior
@@ -198,9 +199,11 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     git("symbolic-ref", "HEAD", f"refs/heads/{GIBBY_SNAPSHOT_BRANCH}")
     git("commit", "--no-verify", "--allow-empty", "-m", "staged snapshot")
     git("add", ".")
-    files_to_force_snapshot = (pair[0] for pair in files_with_snapshot_attribute if pair[1] == SnapshotBehavior.force)
-    for batch in yield_batches(files_to_force_snapshot, MAX_GIT_ADD_ARGUMENTS):
-        git("add", "--force", "--", *(git.quote_pathspec(path) for path in batch))
+    file_tree = FileTree.from_list(repository, files_with_snapshot_attribute)
+    for should_snapshot, paths in file_tree.walk():
+        commands = ("add", "--force", "--") if should_snapshot else ("reset", "--")
+        for batch in yield_batches(paths, MAX_GIT_ADD_ARGUMENTS):
+            git(*commands, *(git.quote_pathspec(path) for path in batch))        
     git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged snapshot\n{original_repo_state.serialize()}")
     # We've modified the original repo while creating the snapshot...
     # Good thing we've just made a snapshot to restore from :)
