@@ -37,7 +37,7 @@ def yield_possibly_snapshotted_paths(
 
     queue = [root]
     while queue:
-        current_directory = queue.pop()
+        current_directory = queue.pop(0)
         if current_directory.name == git_directory_name:
             # Presumably these are the only directories within .git the user might want to back up.
             # git disallows adding files from the .git directory, even with --force, so these require special treatment.
@@ -102,7 +102,7 @@ def yield_git_repositories(root: Path, ignore_dir_regex: re.Pattern[str] | None 
 
     queue = [root]
     while queue:
-        directory = queue.pop()
+        directory = queue.pop(0)
         if ignore_dir_regex is not None:
             if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
                 logger.info(f"Skipping directory {directory}")
@@ -337,7 +337,7 @@ def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> 
 
     queue = [backup_root]
     while queue:
-        remote_directory = queue.pop()
+        remote_directory = queue.pop(0)
         local_subdirectory = to_directory / remote_directory.relative_to(backup_root)
         if remote_directory.joinpath(GIT_BARE_SENTRY_FILE).is_file():
             restore_single(str(remote_directory), local_subdirectory, drop_snapshot)
