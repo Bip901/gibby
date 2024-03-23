@@ -35,7 +35,8 @@ def help() -> None:
     print()
     print(f"The {logic.SNAPSHOT_ATTRIBUTE} attribute may have the following values:")
     for val in snapshot_behavior.SnapshotBehavior:
-        print(f"  * {val}{' (default)' if val == snapshot_behavior.DEFAULT else ''}")
+        print(f"* {val}{' (default)' if val == snapshot_behavior.DEFAULT else ''}")
+        print(f"    {val.get_description()}")
     print(f"Any other value is treated as '{snapshot_behavior.DEFAULT}'.")
     print()
     print(
