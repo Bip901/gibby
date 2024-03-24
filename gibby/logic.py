@@ -55,6 +55,7 @@ def yield_possibly_snapshotted_paths(
 
 
 def yield_batches(iterable: Iterable[Any], batch_size: int) -> Generator[list[Any], None, None]:
+    iterable = iter(iterable)  # Make reading elements expendable
     while chunk := list(itertools.islice(iterable, batch_size)):
         yield chunk
 
