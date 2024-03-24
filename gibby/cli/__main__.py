@@ -21,6 +21,12 @@ stream_handler.setFormatter(logging.Formatter("{asctime} {levelname[0]}\t{messag
 logger.addHandler(stream_handler)
 
 
+@app.callback()
+def global_hook(debug: Annotated[bool, typer.Option(help="Enable debug logs.")] = False) -> None:
+    if debug:
+        logger.setLevel(logging.DEBUG)
+
+
 @app.command()
 def backup(
     source_directory: Annotated[

@@ -68,33 +68,9 @@ def yield_paths_with_snapshot_attribute(
     """
 
     logger.info(f"Searching for '{SNAPSHOT_ATTRIBUTE}' attributes in '{repository}'")
-
-    def encode_path(path: Path) -> bytes:
-        result = str(path.relative_to(repository))
-        if path.is_dir() and not result.endswith("/"):
-            result += "/"
-        return result.encode()
-
-    stdin = b"\0".join(map(encode_path, yield_possibly_snapshotted_paths(repository, ignore_dir_regex)))
-    stdout = Git(repository)("check-attr", "--stdin", "-z", SNAPSHOT_ATTRIBUTE, stdin=stdin)
-    i = 0
-    while i < len(stdout):
-        try:
-            next_separator = stdout.index(b"\0", i)
-        except ValueError:
-            break
-        path = stdout[i:next_separator]
-        i = stdout.index(b"\0", next_separator) + 1  # Skip the "tag" field
-        i = stdout.index(b"\0", i) + 1
-        try:
-            next_separator = stdout.index(b"\0", i)
-        except ValueError:
-            next_separator = len(stdout)
-        value = stdout[i:next_separator].decode()
-        i = next_separator + 1
-        if value != "unspecified":
-            value_enum = SnapshotBehavior.from_str(value)
-            yield (repository / path.decode(), value_enum)
+    paths_to_search = yield_possibly_snapshotted_paths(repository, ignore_dir_regex)
+    for path, value in Git(repository).check_attr(SNAPSHOT_ATTRIBUTE, paths_to_search):
+        yield (path, SnapshotBehavior.from_str(value))
 
 
 def yield_git_repositories(root: Path, ignore_dir_regex: re.Pattern[str] | None = None) -> Generator[Path, None, None]:
