@@ -26,7 +26,8 @@ all = [
 ]
 dev = [
     "ruff>=0.3.1,<1",
-    "mypy>=1.9.0,<2"
+    "mypy>=1.9.0,<2",
+    "pytest>=8.1.1,<9"
 ]
 
 [project.urls]
