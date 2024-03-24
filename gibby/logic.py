@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Generator, Iterator
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,8 +54,8 @@ def yield_possibly_snapshotted_paths(
                 queue.append(file)
 
 
-def yield_batches(iterator: Iterator[Any], batch_size: int) -> Generator[list[Any], None, None]:
-    while chunk := list(itertools.islice(iterator, batch_size)):
+def yield_batches(iterable: Iterable[Any], batch_size: int) -> Generator[list[Any], None, None]:
+    while chunk := list(itertools.islice(iterable, batch_size)):
         yield chunk
 
 
@@ -203,7 +203,7 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     for should_snapshot, paths in file_tree.walk():
         commands = ("add", "--force", "--") if should_snapshot else ("reset", "--")
         for batch in yield_batches(paths, MAX_GIT_ADD_ARGUMENTS):
-            git(*commands, *(git.quote_pathspec(path) for path in batch))        
+            git(*commands, *(git.quote_pathspec(path) for path in batch))
     git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged snapshot\n{original_repo_state.serialize()}")
     # We've modified the original repo while creating the snapshot...
     # Good thing we've just made a snapshot to restore from :)
