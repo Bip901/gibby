@@ -180,7 +180,8 @@ def _record_snapshot(repository: Path) -> Generator[None, None, None]:
     for should_snapshot, paths in file_tree.walk():
         commands = ("add", "--force", "--") if should_snapshot else ("reset", "--")
         for batch in yield_batches(paths, MAX_GIT_ADD_ARGUMENTS):
-            git(*commands, *(git.quote_pathspec(path) for path in batch))
+            if batch:  # 'paths' is not supposed to be empty (thus neither should 'batch'), but check just in case there's a bug, because doing 'git reset' with no arguments is bad
+                git(*commands, *(git.quote_pathspec(path) for path in batch))
     git("commit", "--no-verify", "--allow-empty", "-m", f"unstaged snapshot\n{original_repo_state.serialize()}")
     # We've modified the original repo while creating the snapshot...
     # Good thing we've just made a snapshot to restore from :)
