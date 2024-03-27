@@ -117,13 +117,6 @@ class Git:
         stdout = self("branch", "--list", "--format", "%(refname)", is_read_only=True)
         return stdout.decode().strip("\n").splitlines()
 
-    def get_local_tags(self) -> list[str]:
-        """
-        Lists the full tag names of all local tags (e.g. refs/tags/my-tag).
-        """
-        stdout = self("tag", "--list", "--format", "%(refname)", is_read_only=True)
-        return stdout.decode().strip("\n").splitlines()
-
     def create_bare_repository(self, initial_branch: Optional[str] = None) -> None:
         """
         Creates a new bare repository at the current working directory.

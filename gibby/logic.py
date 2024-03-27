@@ -216,20 +216,7 @@ def backup_single(repository: Path, remote: str, test_connectivity: bool) -> Non
 
     with _record_snapshot(repository):
         git = Git(repository)
-        # Push all branches and delete old remote branches
-        git("push", "--all", "--force", "--", remote)
-        local_branches = set(git.get_local_branches())
-        remote_branches = set(git.get_remote_branches(remote))
-        for extra_branch in remote_branches.difference(local_branches):
-            logger.info(f"Deleting branch {extra_branch} from backup because it no longer exists")
-            git("push", remote, "--delete", extra_branch)
-        # Push all tags and delete old remote tags
-        git("push", "--tags", "--force", "--", remote)
-        local_tags = set(git.get_local_tags())
-        remote_tags = set(git.get_remote_tags(remote))
-        for extra_tag in remote_tags.difference(local_tags):
-            logger.info(f"Deleting tag {extra_tag} from backup because it no longer exists")
-            git("push", remote, "--delete", extra_tag)
+        git("push", "--mirror", "--force", "--", remote)
 
 
 def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
