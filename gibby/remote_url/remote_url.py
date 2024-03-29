@@ -94,3 +94,11 @@ class RemoteUrl:
         """
         Returns whether this URL exists and points to a regular file.
         """
+
+    @abc.abstractmethod
+    def rmtree(self) -> None:
+        """
+        Similar to rm -rf: deletes this file. If this is a directory, deletes the entire directory tree.
+
+        :raises FileNotFoundError:
+        """

@@ -46,16 +46,21 @@ def backup(
     ignore_dir: Annotated[
         Optional[re.Pattern[str]], typer.Option(help=utils.IGNORE_DIRECTORY_REGEX_HELP, click_type=utils.RegexParser())
     ] = None,
+    delete_excess_repos: Annotated[
+        bool,
+        typer.Option(
+            help="Whether to delete non-ignored directories that exist on the backup but don't exist on the source."
+        ),
+    ] = True,
 ) -> None:
     """
-    Recursively searches for git directories and backs them up to the given remote, which will become a partial mirror of the source directory.
-    Directories that exist in the backup but not in the source will be deleted.
-    Files outside git repositories are ignored.
+    Recursively searches for git directories and backs them up to the given remote.
+    The directory structure is preserved in the backup, but files outside git repositories are not backed up.
     """
 
     utils.ensure_git_installed()
     try:
-        logic.backup(source_directory, backup_root, ignore_dir)
+        logic.backup(source_directory, backup_root, ignore_dir, delete_excess_repos)
     except AbortOperationError as ex:
         logger.error(ex.message)
         exit(1)
@@ -103,9 +108,7 @@ def restore_single(
     ],
     drop_snapshot: Annotated[
         bool,
-        typer.Argument(
-            help="Whether to ignore the snapshot data in the backup (true) or include it in the restoration (false)."
-        ),
+        typer.Option(help="Whether to ignore the snapshot data in the backup or include it in the restoration."),
     ] = False,
 ) -> None:
     """
@@ -138,13 +141,11 @@ def restore(
     ],
     drop_snapshot: Annotated[
         bool,
-        typer.Argument(
-            help="Whether to ignore the snapshot data in the backup (true) or include it in the restoration (false)."
-        ),
+        typer.Option(help="Whether to ignore the snapshot data in the backup or include it in the restoration."),
     ] = False,
     intertwine: Annotated[
         bool,
-        typer.Argument(
+        typer.Option(
             help="Whether to allow restoring into a non-empty directory such that non-conflicting existing files are kept. Conflicting directories will still fail the restoration."
         ),
     ] = False,

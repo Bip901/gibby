@@ -25,9 +25,20 @@ GIBBY_SNAPSHOT_BRANCH = "gibby_internal/snapshot"
 MAX_GIT_ADD_ARGUMENTS = 32
 
 
-def is_path_ignored(path: Path, ignore_path_regex: re.Pattern[str]) -> bool:
+def is_path_ignored(path: Path | str, ignore_path_regex: re.Pattern[str] | None) -> bool:
+    """Returns whether the given path should be ignored according to the given regex.
+
+    :param path: A *relative* path.
+    :param ignore_path_regex: The regex to use, or None to return False.
+    """
+    if ignore_path_regex is None:
+        return False
     path_string = str(path).replace(os.sep, "/")
     return bool(ignore_path_regex.match(path_string))
+
+
+def is_git_bare_directory(path_or_url: RemoteUrl | Path) -> bool:
+    return path_or_url.joinpath(GIT_BARE_SENTRY_FILE).is_file()
 
 
 def yield_possibly_snapshotted_paths(
@@ -46,7 +57,7 @@ def yield_possibly_snapshotted_paths(
             # TODO
             # queue.extend(d for d in (current_directory / "hooks", current_directory / "info") if d.is_dir())
             continue
-        if ignore_dir_regex is not None and is_path_ignored(current_directory.relative_to(root), ignore_dir_regex):
+        if is_path_ignored(current_directory.relative_to(root), ignore_dir_regex):
             logger.info(f"Skipping directory {current_directory}")
             continue
         for file in current_directory.iterdir():
@@ -82,10 +93,9 @@ def yield_git_repositories(root: Path, ignore_dir_regex: re.Pattern[str] | None 
     queue = [root]
     while queue:
         directory = queue.pop(0)
-        if ignore_dir_regex is not None:
-            if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
-                logger.info(f"Skipping directory {directory}")
-                continue
+        if is_path_ignored(directory.relative_to(root), ignore_dir_regex):
+            logger.info(f"Skipping directory {directory}")
+            continue
         if (directory / git_directory_name).is_dir():
             yield directory
             continue
@@ -262,10 +272,12 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     logger.info(f"Restore '{remote}' complete.")
 
 
-def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: re.Pattern[str] | None) -> None:
+def backup(
+    source_directory: Path, backup_root: RemoteUrl, ignore_dir: re.Pattern[str] | None, delete_excess_repos: bool
+) -> None:
     """
-    Recursively backs up the given file tree to the given remote.
-    By the end of this function, the directory tree in backup_root will be a partial mirror copy of source_directory (that is, only containing the .git directories found and not excluded)
+    Recursively searches for git directories and backs them up to the given remote.
+    The directory structure is preserved in the backup, but files outside git repositories are not backed up.
 
     :raises AbortOperationError: When thrown, some repository within the source directory could not (and was not) backed up. It was left in the same state as nothing was performed.
     """
@@ -280,6 +292,25 @@ def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: re.Patter
         remote_path.mkdirs(original_permissions)
         remote_path.init_git_bare_if_needed(GIBBY_SNAPSHOT_BRANCH)
         backup_single(repository, remote_path.raw_url, test_connectivity=False)
+    if delete_excess_repos:
+        delete_excess_repositories(backup_root, source_directory, backup_root, ignore_dir)
+
+
+def delete_excess_repositories(
+    current_directory: RemoteUrl, source_root: Path, backup_root: RemoteUrl, ignore_dir: re.Pattern[str] | None
+) -> None:
+    for child in current_directory.iterdir():
+        if not child.is_dir():
+            continue
+        relative_child_path = child.relative_to(backup_root)
+        if is_path_ignored(relative_child_path, ignore_dir):
+            continue
+        if source_root.joinpath(relative_child_path).is_dir():
+            if not is_git_bare_directory(child):
+                delete_excess_repositories(child, source_root, backup_root, ignore_dir)
+        else:
+            logger.info(f"Deleting {child}")
+            child.rmtree()
 
 
 def restore(
@@ -304,7 +335,7 @@ def restore(
     while queue:
         remote_directory = queue.pop(0)
         local_subdirectory = to_directory / remote_directory.relative_to(backup_root)
-        if remote_directory.joinpath(GIT_BARE_SENTRY_FILE).is_file():
+        if is_git_bare_directory(remote_directory):
             restore_single(str(remote_directory), local_subdirectory, drop_snapshot)
         else:
             local_subdirectory.mkdir(exist_ok=True)

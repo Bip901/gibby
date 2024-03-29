@@ -1,8 +1,11 @@
 import logging
+import os
 import platform
+import shutil
+import stat
 from collections.abc import Generator
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from gibby.git import Git
 
@@ -60,3 +63,15 @@ class FileRemoteUrl(RemoteUrl):
 
     def is_file(self) -> bool:
         return self._local_path.is_file()
+
+    def rmtree(self) -> None:
+        if self._local_path.is_dir():
+
+            def on_error(func: Callable[..., Any], path: str, excinfo: tuple[Any]) -> None:
+                # Some files within .git are read-only. Attempt to delete them anyway by changing permissions.
+                os.chmod(path, stat.S_IWUSR)
+                func(path)
+
+            shutil.rmtree(self._local_path, onerror=on_error)
+        else:
+            self._local_path.unlink()
