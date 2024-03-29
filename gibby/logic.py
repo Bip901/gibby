@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .errors import AbortOperationError, NonEmptyDirectoryError
 from .file_tree import FileTree
 from .git import GIT_BARE_SENTRY_FILE, Git, GitOngoingOperation, git_directory_name
 from .remote_url import RemoteUrl
@@ -89,15 +90,6 @@ def yield_git_repositories(root: Path, ignore_dir_regex: re.Pattern[str] | None 
             yield directory
             continue
         queue.extend(x for x in directory.iterdir() if x.is_dir())
-
-
-class AbortOperationError(Exception):
-    def __init__(self, message: str) -> None:
-        super().__init__()
-        self.message = message
-
-    def __str__(self) -> str:
-        return self.message
 
 
 @dataclass
@@ -224,6 +216,8 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
     Restores a single repository.
 
     :raises ValueError:
+    :raises NotADirectoryError:
+    :raises NonEmptyDirectoryError:
     """
 
     if remote.startswith("-"):
@@ -232,9 +226,9 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
         logger.info(f"Creating empty directory '{restore_to}'")
         restore_to.mkdir(exist_ok=True)
     if not restore_to.is_dir():
-        raise ValueError(f"'{restore_to}' is not a directory.")
+        raise NotADirectoryError(f"'{restore_to}' is not a directory.")
     if len(list(restore_to.iterdir())) > 0:
-        raise ValueError(f"Refusing to restore into non-empty directory '{restore_to}'")
+        raise NonEmptyDirectoryError(f"Refusing to restore into non-empty directory '{restore_to}'")
     git = Git(restore_to)
     origin_name = "gibby-origin"
     git("clone", "--no-hardlinks", "--origin", origin_name, remote, ".")
@@ -288,18 +282,21 @@ def backup(source_directory: Path, backup_root: RemoteUrl, ignore_dir: re.Patter
         backup_single(repository, remote_path.raw_url, test_connectivity=False)
 
 
-def restore(backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool) -> None:
+def restore(
+    backup_root: RemoteUrl, to_directory: Path, drop_snapshot: bool, allow_non_empty_target: bool = False
+) -> None:
     """
     Recursively restores a backed-up file tree.
 
-    :raises ValueError:
+    :raises NotADirectoryError:
+    :raises NonEmptyDirectoryError:
     """
 
     if to_directory.exists():
         if not to_directory.is_dir():
-            raise ValueError(f"'{to_directory}' is not a directory!")
-        if next(to_directory.iterdir(), None) is not None:
-            raise ValueError(f"Refusing to restore to non-empty directory '{to_directory}'")
+            raise NotADirectoryError(f"'{to_directory}' is not a directory!")
+        if not allow_non_empty_target and next(to_directory.iterdir(), None) is not None:
+            raise NonEmptyDirectoryError(f"Refusing to restore to non-empty directory '{to_directory}'.", to_directory)
     else:
         to_directory.mkdir()
 

@@ -7,6 +7,7 @@ from typing import Annotated, Optional
 import typer
 
 from gibby import logic, remote_url
+from gibby.errors import AbortOperationError, NonEmptyDirectoryError
 
 from . import _utils as utils
 from . import snapshot
@@ -48,12 +49,14 @@ def backup(
 ) -> None:
     """
     Recursively searches for git directories and backs them up to the given remote, which will become a partial mirror of the source directory.
+    Directories that exist in the backup but not in the source will be deleted.
+    Files outside git repositories are ignored.
     """
 
     utils.ensure_git_installed()
     try:
         logic.backup(source_directory, backup_root, ignore_dir)
-    except logic.AbortOperationError as ex:
+    except AbortOperationError as ex:
         logger.error(ex.message)
         exit(1)
 
@@ -79,7 +82,7 @@ def backup_single(
     utils.ensure_git_installed()
     try:
         logic.backup_single(source_directory, backup_url, test_connectivity=True)
-    except (logic.AbortOperationError, ValueError) as ex:
+    except (AbortOperationError, ValueError) as ex:
         logger.error(ex)
         exit(1)
 
@@ -113,7 +116,7 @@ def restore_single(
     utils.ensure_git_installed()
     try:
         logic.restore_single(backup_url, restore_to, drop_snapshot)
-    except ValueError as ex:
+    except (ValueError, NotADirectoryError) as ex:
         logger.error(ex)
         exit(1)
 
@@ -139,14 +142,26 @@ def restore(
             help="Whether to ignore the snapshot data in the backup (true) or include it in the restoration (false)."
         ),
     ] = False,
+    intertwine: Annotated[
+        bool,
+        typer.Argument(
+            help="Whether to allow restoring into a non-empty directory such that non-conflicting existing files are kept. Conflicting directories will still fail the restoration."
+        ),
+    ] = False,
 ) -> None:
     """
     Recursively restores a backed-up file tree created with `backup`.
     """
     utils.ensure_git_installed()
     try:
-        logic.restore(backup_root, restore_to, drop_snapshot)
-    except ValueError as ex:
+        logic.restore(backup_root, restore_to, drop_snapshot, intertwine)
+    except NonEmptyDirectoryError as ex:
+        message = str(ex)
+        if ex.path == restore_to:
+            message += " Use --intertwine to restore anyway."
+        logger.error(message)
+        exit(1)
+    except NotADirectoryError as ex:
         logger.error(ex)
         exit(1)
 
