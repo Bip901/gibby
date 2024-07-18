@@ -81,7 +81,7 @@ def backup_single(
 ) -> None:
     """
     Backs up a single repository.
-    As opposed 'backup', 'backup-single' supports any URL format your git supports, because it performs no extra logic on the remote.
+    Unlike 'backup', 'backup-single' supports any URL format your git supports, because it performs no extra logic on the remote.
     """
 
     utils.ensure_git_installed()
@@ -113,7 +113,7 @@ def restore_single(
 ) -> None:
     """
     Restores a single repository.
-    As opposed 'restore', 'restore-single' supports any URL format your git supports, because it performs no extra logic on the remote.
+    Unlike 'restore', 'restore-single' supports any URL format your git supports, because it performs no extra logic on the remote.
     """
 
     utils.ensure_git_installed()
