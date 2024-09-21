@@ -126,6 +126,10 @@ class Git:
         else:
             self("init", "--bare")
 
+    def get_remotes(self) -> list[str]:
+        stdout = self("remote", is_read_only=True)
+        return stdout.decode().splitlines()
+
     def get_remote_branches(self, remote_url: str) -> list[str]:
         """
         Connects to the given remote URL and returns its full branch names (e.g. refs/heads/main).

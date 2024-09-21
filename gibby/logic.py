@@ -273,7 +273,11 @@ def restore_single(remote: str, restore_to: Path, drop_snapshot: bool) -> None:
 
 
 def backup(
-    source_directory: Path, backup_root: RemoteUrl, ignore_dir: re.Pattern[str] | None, delete_excess_repos: bool
+    source_directory: Path,
+    backup_root: RemoteUrl,
+    ignore_dir: re.Pattern[str] | None,
+    delete_excess_repos: bool,
+    skip_if_has_remote: bool,
 ) -> None:
     """
     Recursively searches for git directories and backs them up to the given remote.
@@ -286,6 +290,9 @@ def backup(
     if not repositories:
         raise AbortOperationError(f"No git repositories were found under '{source_directory}'.")
     for repository in repositories:
+        if skip_if_has_remote and len(Git(repository).get_remotes()) > 0:
+            logger.info("Skipping '%s' because it has a remote and --skip-if-has-remote was specified.", repository)
+            continue
         remote_subdirectory = repository.relative_to(source_directory)
         remote_path = backup_root.joinpath(remote_subdirectory)
         original_permissions = repository.stat().st_mode & 0o777

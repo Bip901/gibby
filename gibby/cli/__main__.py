@@ -52,6 +52,9 @@ def backup(
             help="Whether to delete non-ignored directories that exist on the backup but don't exist on the source."
         ),
     ] = True,
+    skip_if_has_remote: Annotated[
+        bool, typer.Option(help="Whether to skip repos that have any git remote set.")
+    ] = False,
 ) -> None:
     """
     Recursively searches for git directories and backs them up to the given remote.
@@ -60,7 +63,7 @@ def backup(
 
     utils.ensure_git_installed()
     try:
-        logic.backup(source_directory, backup_root, ignore_dir, delete_excess_repos)
+        logic.backup(source_directory, backup_root, ignore_dir, delete_excess_repos, skip_if_has_remote)
     except AbortOperationError as ex:
         logger.error(ex.message)
         exit(1)
