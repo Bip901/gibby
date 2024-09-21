@@ -154,6 +154,7 @@ def _apply_snapshot(git: Git, original_repo_state: RepoState) -> None:
 
 @contextmanager
 def _record_snapshot(repository: Path) -> Generator[None, None, None]:
+    repository = repository.absolute()
     git = Git(repository)
     for operation in GitOngoingOperation:
         if git.is_ongoing_operation(operation):
